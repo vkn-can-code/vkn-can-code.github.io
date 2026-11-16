@@ -1,0 +1,1828 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Vivek — Software Developer &amp; AI Enthusiast · Class: Code Explorer · BSc Computer Science @ Rajagiri College of Social Sciences, Kerala, India. Interactive 16-bit portfolio town." />
+    <title>Vivek — Software Developer &amp; AI Enthusiast | Code Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600;700&family=Nunito:ital,wght@0,400;0,600;0,700;0,800;0,900;1,600&family=Press+Start+2P&display=swap" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      // Resume is the default view; any town/page hash opens game mode
+      document.documentElement.setAttribute('data-mode', /^#(town|about|education|projects|ailab|skills|contact)$/.test(location.hash) ? 'game' : 'pro');
+    </script>
+    <script>
+      // Keep the page hidden until swarm-intro.js mounts its overlay (4s fail-safe)
+      (function () {
+        var root = document.documentElement;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        root.classList.add('swarm-intro-pending');
+        setTimeout(function () { root.classList.remove('swarm-intro-pending'); }, 4000);
+      })();
+    </script>
+  </head>
+  <body data-theme="day">
+    <!-- Ambient floating sky -->
+    <div class="ambient-sky" aria-hidden="true">
+      <div class="cloud cloud-1"></div>
+      <div class="cloud cloud-2"></div>
+      <div class="cloud cloud-3"></div>
+      <div class="sky-stars" id="sky-stars"></div>
+      <canvas id="monsoon-rain-canvas" class="monsoon-rain-canvas"></canvas>
+      <div class="ambient-lightning" id="ambient-lightning"></div>
+    </div>
+
+    <!-- Top Command Navigation Bar -->
+    <header class="topbar site-header" id="site-topbar">
+      <div class="topbar-inner sh-inner">
+        <!-- Brand: name + role (level badge only in game mode) -->
+        <a class="brand sh-brand" href="#pro" id="brand-link" data-route="pro" aria-label="Vivek, Software Developer, home">
+          <span class="brand-avatar-mini sh-avatar" id="brand-avatar-mini" aria-hidden="true"></span>
+          <span class="sh-brand-text">
+            <span class="sh-name">Vivek <span class="brand-rank-tag game-only">LVL <span id="brand-level-val">3</span></span></span>
+            <span class="sh-role">Software Developer · AI Enthusiast</span>
+          </span>
+        </a>
+
+        <!-- Resume mode: section links -->
+        <nav class="sh-nav pro-only" id="pro-nav-links" aria-label="Resume sections">
+          <a href="#pro-about" class="sh-link pro-nav-item" data-section="pro-about" data-cms="site-topbar.sh-link">Summary</a>
+          <a href="#pro-projects" class="sh-link pro-nav-item" data-section="pro-projects" data-cms="site-topbar.sh-link-2">Projects</a>
+          <a href="#pro-ai" class="sh-link pro-nav-item" data-section="pro-ai" data-cms="site-topbar.sh-link-3">AI &amp; Research</a>
+          <a href="#pro-education" class="sh-link pro-nav-item" data-section="pro-education" data-cms="site-topbar.sh-link-4">Education</a>
+          <a href="#pro-skills" class="sh-link pro-nav-item" data-section="pro-skills" data-cms="site-topbar.sh-link-5">Skills</a>
+          <a href="#pro-contact" class="sh-link pro-nav-item" data-section="pro-contact" data-cms="site-topbar.sh-link-6">Contact</a>
+        </nav>
+
+        <!-- Game mode: town portals -->
+        <nav class="sh-nav game-only" id="desktop-nav-links" aria-label="Town portals">
+          <a href="#town" data-route="town" class="sh-link nav-item" title="Playable 16-bit town" data-cms="site-topbar.sh-link-7">Town</a>
+          <a href="#about" data-route="about" class="sh-link nav-item" title="About Vivek" data-cms="site-topbar.sh-link-8">About</a>
+          <a href="#projects" data-route="projects" class="sh-link nav-item" title="Selected software work" data-cms="site-topbar.sh-link-10">Projects</a>
+          <a href="#ailab" data-route="ailab" class="sh-link nav-item" title="Local LLMs &amp; systems" data-cms="site-topbar.sh-link-11">AI Lab</a>
+          <a href="#skills" data-route="skills" class="sh-link nav-item" title="Tech stack &amp; languages" data-cms="site-topbar.sh-link-12">Skills</a>
+          <a href="#contact" data-route="contact" class="sh-link nav-item" title="Email &amp; profiles" data-cms="site-topbar.sh-link-13">Contact</a>
+        </nav>
+
+        <div class="topbar-right sh-right">
+          <!-- Game-only tools -->
+          <div class="sh-tools game-only">
+            <button class="sh-icon-btn palette-trigger-btn" id="palette-trigger-btn" type="button" title="Search (⌘K)" aria-label="Search">
+              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <span class="sh-clock" id="nav-location-clock" title="Local time in Kerala, India" data-cms="site-topbar.sh-clock"><span class="live-dot"></span><span class="clock-text" id="ist-clock">IST</span></span>
+            <button class="sh-icon-btn theme-toggle" id="theme-toggle" type="button" title="Cycle atmosphere: day, sunset, monsoon, night" aria-label="Change time of day">
+              <span class="theme-icon">☀️</span>
+            </button>
+            <button class="sh-icon-btn sound-toggle" id="sound-toggle" type="button" aria-pressed="false" title="Toggle chiptune audio">
+              <span class="sound-text" data-cms="site-topbar.sound-text">♪ Off</span>
+            </button>
+          </div>
+
+          <!-- Mode switch: Resume (default) / Game -->
+          <div class="sh-mode" role="group" aria-label="View mode">
+            <button class="mode-btn sh-mode-btn" id="btn-mode-pro" data-mode="pro" type="button">Resume</button>
+            <button class="mode-btn sh-mode-btn" id="btn-mode-town" data-mode="town" type="button">Play Game</button>
+          </div>
+
+          <button class="btn-mobile-nav" id="btn-mobile-nav" type="button" aria-expanded="false" aria-controls="mobile-nav-drawer" aria-label="Toggle navigation menu">
+            <span class="hamburger-bar bar-top"></span>
+            <span class="hamburger-bar bar-mid"></span>
+            <span class="hamburger-bar bar-bot"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Collapsible Mobile Command Drawer (Tablets & Mobile) -->
+      <div class="mobile-nav-drawer" id="mobile-nav-drawer" aria-hidden="true">
+        <div class="mobile-nav-inner">
+          <!-- Mobile Quick Search Button -->
+          <button class="mobile-search-btn" id="mobile-search-btn" type="button">
+            <span class="m-search-icon">🔍</span>
+            <span class="m-search-text" data-cms="site-topbar.m-search-text">Search portals, quests &amp; actions...</span>
+            <kbd class="m-search-kbd" data-cms="site-topbar.m-search-kbd">⌘K</kbd>
+          </button>
+
+          <!-- Mobile Nav Links Grid -->
+          <div class="mobile-nav-grid" role="navigation" aria-label="Mobile Navigation">
+            <a href="#town" data-route="town" class="mobile-nav-card active">
+              <span class="m-card-icon">🎮</span>
+              <div class="m-card-meta">
+                <strong data-cms="site-topbar.strong">Town World</strong>
+                <small data-cms="site-topbar.small">16-bit interactive game</small>
+              </div>
+            </a>
+            <a href="#about" data-route="about" class="mobile-nav-card">
+              <span class="m-card-icon">🏠</span>
+              <div class="m-card-meta">
+                <strong data-cms="site-topbar.strong-2">Vivek's House</strong>
+                <small data-cms="site-topbar.small-2">Bio, background &amp; journey</small>
+              </div>
+            </a>
+            <a href="#projects" data-route="projects" class="mobile-nav-card">
+              <span class="m-card-icon">🚀</span>
+              <div class="m-card-meta">
+                <strong data-cms="site-topbar.strong-4">Projects Studio</strong>
+                <small data-cms="site-topbar.small-4">8 featured works</small>
+              </div>
+            </a>
+            <a href="#ailab" data-route="ailab" class="mobile-nav-card">
+              <span class="m-card-icon">🤖</span>
+              <div class="m-card-meta">
+                <strong data-cms="site-topbar.strong-5">AI Laboratory</strong>
+                <small data-cms="site-topbar.small-5">Local LLMs &amp; Systems</small>
+              </div>
+            </a>
+            <a href="#skills" data-route="skills" class="mobile-nav-card">
+              <span class="m-card-icon">💻</span>
+              <div class="m-card-meta">
+                <strong data-cms="site-topbar.strong-6">Skills Matrix</strong>
+                <small data-cms="site-topbar.small-6">Tech stack &amp; tools</small>
+              </div>
+            </a>
+            <a href="#contact" data-route="contact" class="mobile-nav-card">
+              <span class="m-card-icon">📬</span>
+              <div class="m-card-meta">
+                <strong data-cms="site-topbar.strong-7">Contact Center</strong>
+                <small data-cms="site-topbar.small-7">Email &amp; network</small>
+              </div>
+            </a>
+            <a href="#pro" data-route="pro" class="mobile-nav-card">
+              <span class="m-card-icon">💼</span>
+              <div class="m-card-meta">
+                <strong data-cms="site-topbar.strong-8">Resume View</strong>
+                <small data-cms="site-topbar.small-8">Clean executive document</small>
+              </div>
+            </a>
+          </div>
+
+          <!-- Mobile Drawer Footer Info -->
+          <div class="mobile-drawer-footer">
+            <div class="m-footer-stats">
+              <span class="m-stat-item">🇮🇳 <span id="m-ist-clock">IST</span></span>
+              <span class="m-stat-item">⚡ <span id="m-exp-val" data-cms="site-topbar.span">850 EXP</span></span>
+            </div>
+            <div class="m-footer-actions">
+              <button class="m-btn-theme" id="m-btn-theme" type="button">☀️ Atmosphere</button>
+              <button class="m-btn-sound" id="m-btn-sound" type="button">♪ Audio</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-viewport" id="app-viewport">
+      <!-- ====================================================================
+           VIEW 1: PRIMARY TOWN GAME WORKSTATION (Main Window)
+           ==================================================================== -->
+      <section class="game-view-container" id="view-town" aria-label="Interactive Town Game">
+        <div class="gx-shell">
+          <!-- Title bar: who this is, how to play, where to go next -->
+          <header class="gx-hero">
+            <div class="gx-hero-main">
+              <span class="hero-pill" data-cms="view-town.hero-pill">
+                <span class="pulse-dot"></span> Class: Code Explorer · BSc Computer Science — Rajagiri College
+              </span>
+              <h1 class="game-headline" data-cms="view-town.game-headline">
+                Vivek — <em class="game-headline-highlight">Software Developer &amp; AI Enthusiast</em>
+              </h1>
+              <span class="hero-tagline" data-cms="view-town.hero-tagline">
+                Turning ideas into reality through code. Explore the pixel town to inspect projects, AI research &amp; quest logs.
+              </span>
+            </div>
+            <div class="gx-hero-side">
+              <div class="gx-cta-row">
+                <button class="gx-cta gx-cta-primary" id="gx-tour-btn" type="button" data-cms="view-town.gx-tour-btn">▶ Start the tour</button>
+                <button class="gx-cta" id="gx-resume-btn" type="button" data-cms="view-town.gx-resume-btn">Open resume</button>
+              </div>
+              <div class="quick-hints">
+                <span class="hint-chip" data-cms="view-town.hint-chip"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
+                <span class="hint-chip" data-cms="view-town.hint-chip-2"><kbd>Space</kbd> Jump</span>
+                <span class="hint-chip" data-cms="view-town.hint-chip-3"><kbd>C</kbd> Coffee Boost</span>
+                <span class="hint-chip" data-cms="view-town.hint-chip-4"><kbd>E</kbd> Enter House</span>
+              </div>
+            </div>
+          </header>
+
+          <div class="gx-grid">
+            <!-- Left: player, quests, map -->
+            <aside class="gx-side" aria-label="Player and quests">
+              <div class="wing-card player-id-card">
+                <div class="player-id-top">
+                  <div class="player-avatar-ring">
+                    <img src="assets/player-16bit.png" alt="Vivek Avatar" class="wing-avatar-img" data-cms="view-town.wing-avatar-img" />
+                  </div>
+                  <div class="player-id-meta">
+                    <span class="player-tag-class" data-cms="view-town.player-tag-class">SOFTWARE DEVELOPER</span>
+                    <h3 class="player-id-name" data-cms="view-town.player-id-name">VIVEK</h3>
+                    <span class="player-id-sub" data-cms="view-town.player-id-sub">Rajagiri CS · Kerala, India</span>
+                  </div>
+                </div>
+
+                <div class="profile-quick-stats">
+                  <div class="stat-row">
+                    <span class="s-icon">🎓</span>
+                    <span class="s-text" data-cms="view-town.s-text">BSc Computer Science (3rd Yr)</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="s-icon">⚡</span>
+                    <span class="s-text" data-cms="view-town.s-text-2">Full-Stack &amp; Local LLMs</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="s-icon">📍</span>
+                    <span class="s-text" data-cms="view-town.s-text-3">Kalamassery, Kochi (IST)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quest log: progress, XP and level (state lives in script.js, Quests) -->
+              <div class="wing-card gx-quests" id="gx-quests">
+                <div class="gx-quests-head">
+                  <span class="gx-quests-title" data-cms="view-town.gx-quests-title">Quest log</span>
+                  <span class="gx-level" id="gx-level">LVL 1</span>
+                </div>
+                <div class="gx-xp" aria-label="Experience points">
+                  <div class="gx-xp-track"><div class="gx-xp-fill" id="gx-xp-fill"></div></div>
+                  <span class="gx-xp-text" id="gx-xp-text">0 XP</span>
+                </div>
+                <ul class="gx-quest-list">
+                  <li class="gx-quest" data-quest="explore"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-explore">Visit every building</span><span class="gx-quest-progress" id="gx-quest-explore-progress">0/7</span></li>
+                  <li class="gx-quest" data-quest="bulletin"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-bulletin">Read the notice board</span></li>
+                  <li class="gx-quest" data-quest="coffee"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-coffee">Grab a coffee at Kaapi Cafe</span></li>
+                  <li class="gx-quest" data-quest="resume"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-resume">Open the resume from the Career Observatory</span></li>
+                </ul>
+              </div>
+
+              <div class="wing-card landmarks-card">
+                <div class="wing-card-header">
+                  <span class="header-icon">🏛️</span>
+                  <h4 data-cms="view-town.h4">TOWN DIRECTORY</h4>
+                  <span class="landmark-count-badge" data-cms="view-town.landmark-count-badge">8 Landmarks</span>
+                </div>
+                <div class="landmarks-list">
+                  <button class="landmark-nav-btn" data-travel="about" type="button">
+                    <span class="lm-icon">🏠</span>
+                    <div class="lm-info">
+                      <span class="lm-name" data-cms="view-town.lm-name">Vivek's House</span>
+                      <small class="lm-desc" data-cms="view-town.lm-desc">Bio, background &amp; mantra</small>
+                    </div>
+                  </button>
+                  <button class="landmark-nav-btn" data-travel="projects" type="button">
+                    <span class="lm-icon">🚀</span>
+                    <div class="lm-info">
+                      <span class="lm-name" data-cms="view-town.lm-name-3">Projects Workshop</span>
+                      <small class="lm-desc" data-cms="view-town.lm-desc-3">8 Featured applications</small>
+                    </div>
+                  </button>
+                  <button class="landmark-nav-btn" data-travel="skills" type="button">
+                    <span class="lm-icon">🤖</span>
+                    <div class="lm-info">
+                      <span class="lm-name" data-cms="view-town.lm-name-4">AI Laboratory</span>
+                      <small class="lm-desc" data-cms="view-town.lm-desc-4">Local LLMs, RAG &amp; systems</small>
+                    </div>
+                  </button>
+                  <button class="landmark-nav-btn" data-travel="contact" type="button">
+                    <span class="lm-icon">📬</span>
+                    <div class="lm-info">
+                      <span class="lm-name" data-cms="view-town.lm-name-5">Contact Center</span>
+                      <small class="lm-desc" data-cms="view-town.lm-desc-5">Direct email &amp; socials</small>
+                    </div>
+                  </button>
+                  <button class="landmark-nav-btn" data-travel="observatory" type="button">
+                    <span class="lm-icon">🔭</span>
+                    <div class="lm-info">
+                      <span class="lm-name" data-cms="view-town.lm-name-6">AI Observatory</span>
+                      <small class="lm-desc" data-cms="view-town.lm-desc-6">DeepSeek-R1 &amp; cloud data</small>
+                    </div>
+                  </button>
+                  <button class="landmark-nav-btn" data-travel="kaapi" type="button">
+                    <span class="lm-icon">☕</span>
+                    <div class="lm-info">
+                      <span class="lm-name" data-cms="view-town.lm-name-7">Kaapi Cafe</span>
+                      <small class="lm-desc" data-cms="view-town.lm-desc-7">Focus fuel &amp; dev setup</small>
+                    </div>
+                  </button>
+                  <button class="landmark-nav-btn" data-travel="arcade" type="button">
+                    <span class="lm-icon">🕹️</span>
+                    <div class="lm-info">
+                      <span class="lm-name" data-cms="view-town.lm-name-8">Tech Arcade</span>
+                      <small class="lm-desc" data-cms="view-town.lm-desc-8">Languages, tools &amp; CS core</small>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </aside>
+
+            <!-- Right: the game itself, with settings tucked underneath -->
+            <div class="gx-stage">
+              <div class="console-wrapper" id="console-wrapper">
+                <!-- Console Top Bezel -->
+                <div class="console-bezel-top">
+                  <div class="bezel-left">
+                    <span class="console-power-led" id="power-led" title="System Online" data-cms="view-town.console-power-led"></span>
+                    <span class="console-title" data-cms="view-town.console-title">PORTFOLIO TOWN 16-BIT // VIVEK</span>
+                  </div>
+                  <div class="bezel-center">
+                    <span class="location-chip" id="hud-location">📍 Town Square Plaza</span>
+                  </div>
+                  <div class="bezel-right">
+                    <span class="quest-chip" id="hud-quest" title="Interactive Town Buildings">✦ 0/8 Landmarks</span>
+                    <button class="bezel-fs-btn" id="btn-fullscreen" type="button" title="Toggle Fullscreen Mode (Press F)" aria-label="Toggle Fullscreen">
+                      <span class="fs-icon">⛶</span>
+                      <span class="fs-label" data-cms="view-town.fs-label">Fullscreen</span>
+                      <kbd class="fs-kbd" data-cms="view-town.fs-kbd">F</kbd>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Main Game Canvas Screen -->
+                <div class="game-screen" id="game-screen">
+                  <canvas id="game" width="960" height="540" tabindex="0" aria-label="16-bit interactive town game. Walk to buildings or click anywhere to explore."></canvas>
+
+                  <!-- CRT Scanline & Phosphor Filter Overlay -->
+                  <div class="crt-scanlines-overlay" id="crt-scanlines-overlay" aria-hidden="true"></div>
+
+                  <!-- Floating In-Game HUD -->
+                  <div class="hud-overlay">
+                    <div class="hud-pill hud-status" id="hud-status">
+                      <span class="status-icon">💡</span>
+                      <span id="game-status-text">Click anywhere or use WASD to walk · Press E at buildings</span>
+                    </div>
+                    <div class="hud-pill hud-speed" id="hud-speed-pill" data-cms="view-town.hud-pill">
+                      <span class="speed-hint"><kbd>Shift</kbd> Run</span>
+                    </div>
+                  </div>
+
+                  <!-- RPG Building Dialogue / Quick Interior Modal -->
+                  <div class="game-dialog" id="game-dialog" role="dialog" aria-modal="true" aria-hidden="true">
+                    <div class="dialog-box">
+                      <div class="dialog-header">
+                        <div class="dialog-title-group">
+                          <span class="dialog-badge" id="dialog-kicker">01 / ABOUT ME</span>
+                          <h2 class="dialog-heading" id="dialog-title">Vivek's House</h2>
+                        </div>
+                        <div class="dialog-nav-actions">
+                          <button class="dialog-page-btn" id="dialog-open-page-btn" type="button" title="Open full dedicated page view">
+                            Open Full Page ↗
+                          </button>
+                          <button class="dialog-nav-btn" id="dialog-prev-btn" type="button" title="Previous Building (←)">◀ Prev</button>
+                          <button class="dialog-nav-btn" id="dialog-next-btn" type="button" title="Next Building (→)">Next ▶</button>
+                          <button class="dialog-close-btn" id="dialog-close-btn" type="button" aria-label="Close dialog (Esc)">✕</button>
+                        </div>
+                      </div>
+
+                      <div class="dialog-body">
+                        <div class="dialog-speaker-card">
+                          <div class="avatar-frame">
+                            <img src="assets/player-16bit.png" alt="Vivek Portrait" class="dialog-avatar" data-cms="view-town.dialog-avatar" />
+                          </div>
+                          <div class="speaker-meta">
+                            <span class="speaker-name" id="dialog-speaker-name">Vivek</span>
+                            <span class="speaker-role" id="dialog-speaker-role">Software Developer &amp; AI Enthusiast</span>
+                            <span class="speaker-level" id="dialog-speaker-level">Class: Code Explorer · Kerala, India</span>
+                          </div>
+                          <div class="speaker-rpg-bars">
+                            <div class="rpg-mini-stat">
+                              <span data-cms="view-town.span">💻 Coding</span>
+                            </div>
+                            <div class="rpg-mini-stat">
+                              <span data-cms="view-town.span-2">🤖 AI Systems</span>
+                            </div>
+                            <div class="rpg-mini-stat">
+                              <span data-cms="view-town.span-3">⚡ Creativity</span>
+                            </div>
+                            <div class="rpg-mini-stat">
+                              <span data-cms="view-town.span-4">🗺️ Exploration</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="dialog-content-scroll" id="dialog-copy">
+                          <!-- Dynamic building content injected here -->
+                        </div>
+                      </div>
+
+                      <div class="dialog-footer">
+                        <span class="dialog-hint" data-cms="view-town.dialog-hint">
+                          <kbd>E</kbd> or <kbd>Esc</kbd> to leave · <kbd>←</kbd> <kbd>→</kbd> cycle buildings
+                        </span>
+                        <button class="btn-dialog-exit" id="btn-dialog-exit" type="button">Back to Town ↵</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Campus Bulletin / Town Billboard Modal -->
+                  <div class="game-dialog bulletin-dialog" id="bulletin-dialog" role="dialog" aria-modal="true" aria-hidden="true">
+                    <div class="dialog-box bulletin-box">
+                      <div class="dialog-header">
+                        <div class="dialog-title-group">
+                          <span class="dialog-badge" style="background: #be5538; color: #fff;" data-cms="view-town.dialog-badge">📌 TOWN BULLETIN</span>
+                          <h2 class="dialog-heading" data-cms="view-town.dialog-heading">Rajagiri CS &amp; Tech Community Board</h2>
+                        </div>
+                        <div class="dialog-nav-actions">
+                          <button class="dialog-close-btn" id="bulletin-close-btn" type="button" aria-label="Close noticeboard (Esc)">✕</button>
+                        </div>
+                      </div>
+                      <div class="dialog-body bulletin-body">
+                        <div class="bulletin-grid">
+                          <div class="bulletin-pin-card">
+                            <span class="pin-badge gold" data-cms="view-town.pin-badge">🏆 CAMPUS HIGHLIGHT</span>
+                            <h3 data-cms="view-town.h3">SPLENDORE Treasure Hunt App</h3>
+                            <p data-cms="view-town.p">Real-time interactive mobile campus competition game engineered for Rajagiri's annual festival. GPS checkpoint verification &amp; live leaderboard for 400+ students!</p>
+                            <span class="bulletin-tag" data-cms="view-town.bulletin-tag">Rajagiri College of Social Sciences</span>
+                          </div>
+                          <div class="bulletin-pin-card">
+                            <span class="pin-badge teal" data-cms="view-town.pin-badge-2">🤖 AI LAB DISPATCH</span>
+                            <h3 data-cms="view-town.h3-2">Autonomous Local LLM Agent</h3>
+                            <p data-cms="view-town.p-2">100% offline desktop AI system powered by Ollama, Llama 3 &amp; DeepSeek-R1. Built with semantic RAG vector retrieval and automated developer tool execution.</p>
+                            <span class="bulletin-tag" data-cms="view-town.bulletin-tag-2">Local LLMs · Python · Ollama</span>
+                          </div>
+                          <div class="bulletin-pin-card">
+                            <span class="pin-badge brick" data-cms="view-town.pin-badge-3">🩸 SOCIAL IMPACT</span>
+                            <h3 data-cms="view-town.h3-3">Rajagiri Blood Donation Portal</h3>
+                            <p data-cms="view-town.p-3">Connecting voluntary student &amp; faculty donors with urgent hospital requests across Kalamassery and Kochi. Role-based dashboards for rapid matching.</p>
+                            <span class="bulletin-tag" data-cms="view-town.bulletin-tag-3">Community Health Platform</span>
+                          </div>
+                          <div class="bulletin-pin-card">
+                            <span class="pin-badge wood" data-cms="view-town.pin-badge-4">💼 OPPORTUNITIES</span>
+                            <h3 data-cms="view-town.h3-4">Software &amp; AI Engineering</h3>
+                            <p data-cms="view-town.p-4">Vivek is actively seeking software development &amp; AI engineering roles. Passionate about shipping fast, beautiful, reliable web &amp; intelligent systems!</p>
+                            <button class="modal-btn modal-btn-gold" type="button" id="bulletin-contact-btn" style="margin-top: 8px;">
+                              <span data-cms="view-town.span-5">Contact Vivek Directly</span> <span>➔</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="dialog-footer">
+                        <span class="dialog-hint" data-cms="view-town.dialog-hint-2"><kbd>Esc</kbd> or click ✕ to close billboard</span>
+                        <button class="btn-dialog-exit" id="btn-bulletin-exit" type="button">Back to Town ↵</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Virtual Mobile Touch Controls -->
+                  <div class="touch-controls" id="touch-controls" aria-label="On-screen touch controls">
+                    <div class="dpad" id="touch-dpad">
+                      <button class="dpad-btn dpad-up" data-move="up" aria-label="Move Up">▲</button>
+                      <button class="dpad-btn dpad-left" data-move="left" aria-label="Move Left">◀</button>
+                      <div class="dpad-center"></div>
+                      <button class="dpad-btn dpad-right" data-move="right" aria-label="Move Right">▶</button>
+                      <button class="dpad-btn dpad-down" data-move="down" aria-label="Move Down">▼</button>
+                    </div>
+                    <div class="touch-actions">
+                      <button class="touch-btn action-jump" id="touch-jump-btn" data-action="jump" aria-label="Jump">
+                        <span data-cms="view-town.span-6">JUMP</span>
+                        <small data-cms="view-town.small">Space</small>
+                      </button>
+                      <button class="touch-btn action-b" id="touch-run-btn" data-action="run" aria-label="Sprint">
+                        <span data-cms="view-town.span-7">RUN</span>
+                        <small data-cms="view-town.small-2">Shift</small>
+                      </button>
+                      <button class="touch-btn action-a" id="touch-enter-btn" data-action="enter" aria-label="Enter Building">
+                        <span data-cms="view-town.span-8">ENTER</span>
+                        <small data-cms="view-town.small-3">E</small>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Console Bottom Bezel: Player Actions Dock & Fast Travel -->
+                <div class="console-bezel-bottom">
+                  <!-- Player Actions Interactive Dock -->
+                  <div class="player-actions-dock" aria-label="Player Actions">
+                    <span class="actions-dock-label" data-cms="view-town.actions-dock-label">ACTIONS:</span>
+                    <button class="action-dock-btn" data-player-action="jump" type="button" title="Jump / Hop (Space)" data-cms="view-town.action-dock-btn">
+                      <span class="btn-emoji">🦘</span>
+                      <span class="btn-name" data-cms="view-town.btn-name">Jump</span>
+                      <kbd data-cms="view-town.kbd">Space</kbd>
+                    </button>
+                    <button class="action-dock-btn" data-player-action="wave" type="button" title="Wave to Town (Q)" data-cms="view-town.action-dock-btn-2">
+                      <span class="btn-emoji">👋</span>
+                      <span class="btn-name" data-cms="view-town.btn-name-2">Wave</span>
+                      <kbd data-cms="view-town.kbd-2">Q</kbd>
+                    </button>
+                    <button class="action-dock-btn" data-player-action="coffee" type="button" title="Drink Coffee for Speed Boost (C)" data-cms="view-town.action-dock-btn-3">
+                      <span class="btn-emoji">☕</span>
+                      <span class="btn-name" data-cms="view-town.btn-name-3">Coffee</span>
+                      <kbd data-cms="view-town.kbd-3">C</kbd>
+                    </button>
+                    <button class="action-dock-btn" data-player-action="code" type="button" title="Pull out Laptop & Code (H)" data-cms="view-town.action-dock-btn-4">
+                      <span class="btn-emoji">💻</span>
+                      <span class="btn-name" data-cms="view-town.btn-name-4">Code</span>
+                      <kbd data-cms="view-town.kbd-4">H</kbd>
+                    </button>
+                    <button class="action-dock-btn" data-player-action="dance" type="button" title="Celebration Dance (Z)" data-cms="view-town.action-dock-btn-5">
+                      <span class="btn-emoji">💃</span>
+                      <span class="btn-name" data-cms="view-town.btn-name-5">Dance</span>
+                      <kbd data-cms="view-town.kbd-5">Z</kbd>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <details class="gx-settings" id="gx-settings">
+                <summary class="gx-settings-summary">
+                  <span data-cms="view-town.gx-settings-title">⚙ Settings · weather, music &amp; display</span>
+                </summary>
+                <div class="gx-settings-grid">
+                  <div class="wing-card weather-control-card">
+                    <div class="wing-card-header">
+                      <span class="header-icon">🌦️</span>
+                      <h4 data-cms="view-town.h4-2">KERALA ATMOSPHERE</h4>
+                    </div>
+                    <p class="wing-card-sub" data-cms="view-town.wing-card-sub">Dynamic lighting &amp; sky generator</p>
+                    <div class="weather-btn-grid">
+                      <button class="weather-btn active" data-weather="day" type="button" title="Sunny Day in Kochi" data-cms="view-town.weather-btn">
+                        <span class="w-icon">☀️</span>
+                        <span class="w-label" data-cms="view-town.w-label">Sunny</span>
+                      </button>
+                      <button class="weather-btn" data-weather="sunset" type="button" title="Golden Hour Sunset" data-cms="view-town.weather-btn-2">
+                        <span class="w-icon">🌅</span>
+                        <span class="w-label" data-cms="view-town.w-label-2">Sunset</span>
+                      </button>
+                      <button class="weather-btn" data-weather="monsoon" type="button" title="Kerala Monsoon Rain" data-cms="view-town.weather-btn-3">
+                        <span class="w-icon">🌧️</span>
+                        <span class="w-label" data-cms="view-town.w-label-3">Monsoon</span>
+                      </button>
+                      <button class="weather-btn" data-weather="night" type="button" title="Cyber Starlit Night" data-cms="view-town.weather-btn-4">
+                        <span class="w-icon">🌙</span>
+                        <span class="w-label" data-cms="view-town.w-label-4">Night</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="wing-card chiptune-card">
+                    <div class="wing-card-header">
+                      <span class="header-icon">📼</span>
+                      <h4 data-cms="view-town.h4-3">SYNTHESIZER DECK</h4>
+                      <span class="tape-status-pill" id="tape-status">READY</span>
+                    </div>
+
+                    <!-- Retro Cassette Tape Graphic -->
+                    <div class="cassette-tape-graphic">
+                      <div class="tape-window">
+                        <div class="tape-spool spool-left" id="spool-left"></div>
+                        <div class="tape-middle">
+                          <span class="tape-label-text" id="tape-track-name">Track 1: Town 16-Bit</span>
+                        </div>
+                        <div class="tape-spool spool-right" id="spool-right"></div>
+                      </div>
+                    </div>
+
+                    <!-- Animated Equalizer Spectrum -->
+                    <div class="audio-equalizer-bars" id="audio-eq-bars" aria-label="Equalizer Spectrum">
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                    </div>
+
+                    <!-- Track Selector -->
+                    <div class="track-select-row">
+                      <button class="track-btn active" data-track="town" type="button" data-cms="view-town.track-btn">🎵 Town</button>
+                      <button class="track-btn" data-track="monsoon" type="button" data-cms="view-town.track-btn-2">🌧️ Rain</button>
+                      <button class="track-btn" data-track="cyber" type="button" data-cms="view-town.track-btn-3">⚡ Cyber</button>
+                    </div>
+                  </div>
+                  <div class="wing-card soundboard-card">
+                    <div class="wing-card-header">
+                      <span class="header-icon">🎛️</span>
+                      <h4 data-cms="view-town.h4-4">TACTILE SFX PAD</h4>
+                    </div>
+                    <div class="sfx-grid">
+                      <button class="sfx-pad-btn" data-sfx="jump" type="button" data-cms="view-town.sfx-pad-btn">🦘 Hop</button>
+                      <button class="sfx-pad-btn" data-sfx="wave" type="button" data-cms="view-town.sfx-pad-btn-2">👋 Wave</button>
+                      <button class="sfx-pad-btn" data-sfx="coffee" type="button" data-cms="view-town.sfx-pad-btn-3">☕ Kaapi</button>
+                      <button class="sfx-pad-btn" data-sfx="code" type="button" data-cms="view-town.sfx-pad-btn-4">💻 Code</button>
+                      <button class="sfx-pad-btn" data-sfx="dance" type="button" data-cms="view-town.sfx-pad-btn-5">💃 Groove</button>
+                      <button class="sfx-pad-btn" data-sfx="bell" type="button" data-cms="view-town.sfx-pad-btn-6">🔔 Bell</button>
+                    </div>
+                  </div>
+                  <div class="wing-card gx-display-card">
+                    <div class="desk-gadgets-bar">
+                      <!-- Left Gadget: Steaming Kerala Kaapi Mug -->
+                      <button class="desk-gadget-item kaapi-mug-widget" id="gadget-kaapi" type="button" title="Click to sip fresh Kerala Kaapi! (+35% Speed boost)">
+                        <div class="mug-visual">
+                          <span class="mug-emoji">☕</span>
+                          <span class="steam-wisp wisp-1">~</span>
+                          <span class="steam-wisp wisp-2">~</span>
+                        </div>
+                        <div class="gadget-info">
+                          <strong data-cms="view-town.strong">Kerala Kaapi Mug</strong>
+                          <small data-cms="view-town.small-4">Click to sip · Speed Boost ⚡</small>
+                        </div>
+                      </button>
+
+                      <!-- Center Gadget: CRT Scanline & Phosphor FX Switch -->
+                      <div class="desk-gadget-item crt-toggle-widget">
+                        <label class="crt-switch-label" for="crt-toggle-input">
+                          <span class="crt-label-text" data-cms="view-town.crt-label-text">📺 CRT Scanlines</span>
+                          <div class="retro-switch">
+                            <input type="checkbox" id="crt-toggle-input" />
+                            <span class="switch-slider"></span>
+                          </div>
+                        </label>
+                      </div>
+
+                      <!-- Right Gadget: Console Skin Switcher -->
+                      <div class="desk-gadget-item skin-select-widget">
+                        <span class="gadget-mini-label" data-cms="view-town.gadget-mini-label">ARCADE SKIN:</span>
+                        <div class="skin-btn-group">
+                          <button class="skin-btn active" data-skin="slate" title="Classic GameBoy Slate" data-cms="view-town.skin-btn">Slate</button>
+                          <button class="skin-btn" data-skin="wood" title="Kerala Teak Woodgrain" data-cms="view-town.skin-btn-2">Teak</button>
+                          <button class="skin-btn" data-skin="cyber" title="Cyberpunk Matrix Neon" data-cms="view-town.skin-btn-3">Cyber</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           VIEW 2: DEDICATED FULL PAGES (Detailed Portals)
+           ==================================================================== -->
+      
+      <!-- PAGE: 🏠 ABOUT ME / VIVEK'S HOUSE -->
+      <article class="page-view-container" id="page-about" aria-label="About Vivek Page">
+        <div class="page-sheet">
+          <div class="page-top-nav">
+            <a href="#town" class="btn-back-town" data-cms="page-about.btn-back-town"><span class="arr">←</span> Back to Town World</a>
+            <span class="page-location-tag" data-cms="page-about.page-location-tag">LOCATION: NORTH-WEST COTTAGE (VIVEK'S HOUSE)</span>
+          </div>
+
+          <header class="page-header">
+            <div class="character-header-badge">
+              <span class="badge-role" data-cms="page-about.badge-role">CLASS: CODE EXPLORER</span>
+              <span class="badge-lvl" data-cms="page-about.badge-lvl">LEVEL 3 · RAJAGIRI CS</span>
+            </div>
+            <h2 class="page-title" data-cms="page-about.page-title">Vivek</h2>
+            <p class="page-lead-role" data-cms="page-about.page-lead-role">Software Developer &amp; AI Enthusiast · Kerala, India</p>
+          </header>
+
+          <!-- Main Character Dossier / Bio & RPG Stats Showcase -->
+          <div class="character-dossier-card">
+            <!-- Left: Character Card / Avatar / Identity -->
+            <div class="dossier-profile-side">
+              <div class="dossier-avatar-container">
+                <div class="pixel-avatar-box">
+                  <img src="assets/player-16bit.png" alt="Vivek Pixel Character" class="dossier-avatar-img" data-cms="page-about.dossier-avatar-img" />
+                </div>
+                <div class="avatar-class-tag" data-cms="page-about.avatar-class-tag">CODE EXPLORER</div>
+              </div>
+              <div class="dossier-quick-identity">
+                <h3 class="dossier-name" data-cms="page-about.dossier-name">VIVEK</h3>
+                <span class="dossier-role" data-cms="page-about.dossier-role">Software Developer &amp; AI Enthusiast</span>
+                <div class="dossier-meta-list">
+                  <div class="meta-item"><span class="m-icon">🎓</span> <span data-cms="page-about.span"><strong>Education:</strong> BSc Computer Science</span></div>
+                  <div class="meta-item"><span class="m-icon">🏛️</span> <span data-cms="page-about.span-2">Rajagiri College of Social Sciences</span></div>
+                  <div class="meta-item"><span class="m-icon">📍</span> <span data-cms="page-about.span-3"><strong>Location:</strong> Kerala, India</span></div>
+                  <div class="meta-item"><span class="m-icon">⚡</span> <span data-cms="page-about.span-4"><strong>Status:</strong> Building Digital Experiences</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Character Bio Speech Bubble & Stats Widget -->
+            <div class="dossier-bio-side">
+              <div class="bio-speech-bubble">
+                <div class="bubble-speaker-header">
+                  <span class="bubble-title" data-cms="page-about.bubble-title">CHARACTER BIO // VIVEK</span>
+                  <span class="bubble-time" data-cms="page-about.bubble-time">ONLINE ⚡</span>
+                </div>
+                <h3 class="bio-greeting" data-cms="page-about.bio-greeting">Hey, I'm Vivek! 👋</h3>
+                <p class="bio-para" data-cms="page-about.bio-para">
+                  A computer science student, developer, and technology enthusiast who loves turning ideas into reality through code.
+                </p>
+                <p class="bio-para" data-cms="page-about.bio-para-2">
+                  From building web applications to experimenting with artificial intelligence, I'm always exploring new technologies, solving problems, and creating something unique.
+                </p>
+                <div class="bio-quest-mantra">
+                  <span class="mantra-sparkle">✦</span>
+                  <p class="mantra-text" data-cms="page-about.mantra-text">
+                    Every project is a new quest. Every bug is another challenge. And this world? It's just the beginning.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Character Stats (Exact requested stats) -->
+              <div class="character-stats-widget">
+                <div class="stats-widget-header">
+                  <span class="stats-title" data-cms="page-about.stats-title">✦ CHARACTER STATS</span>
+                  <span class="stats-class-pill" data-cms="page-about.stats-class-pill">CLASS: CODE EXPLORER</span>
+                </div>
+                <div class="stats-matrix-grid">
+                  <!-- Stat 1: Coding -->
+                  <div class="stat-matrix-item">
+                    <div class="stat-header-row">
+                      <span class="stat-label" data-cms="page-about.stat-label"><span class="stat-icon">💻</span> Coding</span>
+                    </div>
+                    <div class="stat-caption" data-cms="page-about.stat-caption">Building digital experiences</div>
+                  </div>
+
+                  <!-- Stat 2: AI -->
+                  <div class="stat-matrix-item">
+                    <div class="stat-header-row">
+                      <span class="stat-label" data-cms="page-about.stat-label-2"><span class="stat-icon">🤖</span> AI</span>
+                    </div>
+                    <div class="stat-caption" data-cms="page-about.stat-caption-2">Exploring intelligent systems</div>
+                  </div>
+
+                  <!-- Stat 3: Creativity -->
+                  <div class="stat-matrix-item">
+                    <div class="stat-header-row">
+                      <span class="stat-label" data-cms="page-about.stat-label-3"><span class="stat-icon">⚡</span> Creativity</span>
+                    </div>
+                    <div class="stat-caption" data-cms="page-about.stat-caption-3">Turning ideas into reality</div>
+                  </div>
+
+                  <!-- Stat 4: Exploration -->
+                  <div class="stat-matrix-item">
+                    <div class="stat-header-row">
+                      <span class="stat-label" data-cms="page-about.stat-label-4"><span class="stat-icon">🗺️</span> Exploration</span>
+                    </div>
+                    <div class="stat-caption" data-cms="page-about.stat-caption-4">Always learning something new</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- The 4 Core Foundations of Vivek's Work -->
+          <div class="page-grid-2">
+            <div class="info-card">
+              <div class="card-icon">🎓</div>
+              <h3 data-cms="page-about.h3">Academic Foundations</h3>
+              <p data-cms="page-about.p">
+                Currently in my third year of <strong>BSc Computer Science</strong> at <strong>Rajagiri College of Social Sciences, Kalamassery</strong>. Deepening proficiency across data structures, algorithm optimization, relational database management, and operating systems.
+              </p>
+            </div>
+            <div class="info-card">
+              <div class="card-icon">🧠</div>
+              <h3 data-cms="page-about.h3-2">AI &amp; Local Intelligence</h3>
+              <p data-cms="page-about.p-2">
+                Passionate about running sovereign, offline AI models (Ollama, Llama 3, DeepSeek). Building autonomous local LLM agent pipelines featuring tool execution, RAG context retrieval, and developer desktop automation.
+              </p>
+            </div>
+            <div class="info-card">
+              <div class="card-icon">⚡</div>
+              <h3 data-cms="page-about.h3-3">Practical Engineering</h3>
+              <p data-cms="page-about.p-3">
+                Believer in building real, usable systems rather than ordinary student assignments. Shipped multi-tiered web portals, real-time college fest game engines, machine learning pipelines, and Playwright automation tools.
+              </p>
+            </div>
+            <div class="info-card">
+              <div class="card-icon">🌴</div>
+              <h3 data-cms="page-about.h3-4">Roots in Kerala, India</h3>
+              <p data-cms="page-about.p-4">
+                Proudly based in Kerala, India. Actively collaborating on campus initiatives, college festivals (SPLENDORE), and seeking impactful software engineering and AI internship opportunities.
+              </p>
+            </div>
+          </div>
+
+          <div class="page-facts-cluster">
+            <div class="fact-tag" data-cms="page-about.fact-tag"><strong>Name:</strong> Vivek</div>
+            <div class="fact-tag" data-cms="page-about.fact-tag-2"><strong>Role:</strong> Software Developer &amp; AI Enthusiast</div>
+            <div class="fact-tag" data-cms="page-about.fact-tag-3"><strong>Class:</strong> Code Explorer</div>
+            <div class="fact-tag" data-cms="page-about.fact-tag-4"><strong>Education:</strong> BSc Computer Science — Rajagiri College of Social Sciences</div>
+            <div class="fact-tag" data-cms="page-about.fact-tag-5"><strong>Location:</strong> Kerala, India (IST)</div>
+            <div class="fact-tag" data-cms="page-about.fact-tag-6"><strong>Current Reading:</strong> Distributed Systems &amp; Local LLM Agents</div>
+          </div>
+
+          <div class="page-footer-actions">
+            <a href="#projects" class="btn-page-link" data-cms="page-about.btn-page-link">Explore My Projects <span>→</span></a>
+            <a href="#ailab" class="btn-page-link outline" data-cms="page-about.btn-page-link-2">Inspect AI Laboratory <span>→</span></a>
+            <a href="#contact" class="btn-page-link outline" data-cms="page-about.btn-page-link-3">Contact Vivek <span>→</span></a>
+          </div>
+        </div>
+      </article>
+
+      <!-- PAGE: 🚀 FEATURED PROJECTS GALLERY -->
+      <article class="page-view-container" id="page-projects" aria-label="Featured Projects Page">
+        <div class="page-sheet">
+          <div class="page-top-nav">
+            <a href="#town" class="btn-back-town" data-cms="page-projects.btn-back-town"><span class="arr">←</span> Back to Town World</a>
+            <span class="page-location-tag" data-cms="page-projects.page-location-tag">LOCATION: EAST FORGE &amp; WORKSHOP (PROJECTS)</span>
+          </div>
+
+          <header class="page-header">
+            <span class="page-kicker" data-cms="page-projects.page-kicker">03 / CODE &amp; SHIP</span>
+            <h2 class="page-title" data-cms="page-projects.page-title">Selected Engineering Projects</h2>
+            <p class="page-lead" data-cms="page-projects.page-lead">
+              A comprehensive directory of software systems, web applications, and tools I have engineered. Spanning multi-user web portals, campus game platforms, AI assistants, and automation pipelines.
+            </p>
+          </header>
+
+          <div class="projects-master-grid">
+            <!-- Project 1: Blood Donation App -->
+            <div class="proj-card">
+              <div class="proj-badge">CAMPUS WEB APPLICATION</div>
+              <h3 class="proj-title">Blood Donation Web Application</h3>
+              <p class="proj-summary">
+                A college-oriented blood donor management platform with three distinct role-based dashboards (Faculty, Administrator, Student), emergency request broadcasting, and donor compatibility matching.
+              </p>
+              <div class="proj-tags">
+                <span>Python</span><span>Flask</span><span>SQLite/MySQL</span><span>RBAC</span><span>Responsive CSS</span>
+              </div>
+              <div class="proj-actions">
+                <a href="#contact" class="proj-btn">Inspect Architecture ↗</a>
+              </div>
+            </div>
+
+            <!-- Project 2: Treasure Hunt App -->
+            <div class="proj-card featured">
+              <div class="proj-badge">EVENT GAME ENGINE · SPLENDORE FEST</div>
+              <h3 class="proj-title">Treasure Hunt Application</h3>
+              <p class="proj-summary">
+                Interactive real-time game platform engineered for the annual college festival SPLENDORE. Featured automated clue progression, real-time GPS checkpoint validation, anti-cheat mechanisms, and live spectator scoreboard.
+              </p>
+              <div class="proj-tags">
+                <span>JavaScript</span><span>Python</span><span>HTML5 Canvas</span><span>Real-Time Events</span><span>Leaderboard</span>
+              </div>
+              <div class="proj-actions">
+                <a href="#contact" class="proj-btn">Inspect Architecture ↗</a>
+              </div>
+            </div>
+
+            <!-- Project 3: Autonomous Local LLM Agent -->
+            <div class="proj-card featured">
+              <div class="proj-badge">LOCAL LLMS &amp; AUTOMATION</div>
+              <h3 class="proj-title">Autonomous Local LLM Agent</h3>
+              <p class="proj-summary">
+                Autonomous intelligent desktop assistant operating completely offline with sovereign local LLM models (Ollama, Llama 3, DeepSeek). Features multi-step tool execution, local file search, and automated developer workflow tasks.
+              </p>
+              <div class="proj-tags">
+                <span>Python</span><span>Ollama</span><span>Llama 3</span><span>Tool Calling</span><span>RAG</span>
+              </div>
+              <div class="proj-actions">
+                <a href="#ailab" class="proj-btn">Visit AI Lab View ↗</a>
+              </div>
+            </div>
+
+            <!-- Project 4: Leukemia Classification -->
+            <div class="proj-card">
+              <div class="proj-badge">MACHINE LEARNING RESEARCH</div>
+              <h3 class="proj-title">Leukemia Classification ML Model</h3>
+              <p class="proj-summary">
+                Bioinformatics research project analyzing high-dimensional microarray gene-expression data to classify leukemia types using competitive classification algorithms (SVM, Random Forest, KNN).
+              </p>
+              <div class="proj-tags">
+                <span>Python</span><span>Scikit-learn</span><span>Pandas</span><span>NumPy</span><span>Matplotlib</span>
+              </div>
+              <div class="proj-actions">
+                <a href="#ailab" class="proj-btn">Inspect ML Research ↗</a>
+              </div>
+            </div>
+
+            <!-- Project 5: Student Profile PDF Generator -->
+            <div class="proj-card">
+              <div class="proj-badge">AUTOMATION &amp; TOOLING</div>
+              <h3 class="proj-title">Student Profile PDF Generator</h3>
+              <p class="proj-summary">
+                High-throughput document generation service using Flask and Playwright headless browser automation to compile dynamic database profiles into pixel-perfect, publication-ready PDF resumes.
+              </p>
+              <div class="proj-tags">
+                <span>Python</span><span>Flask</span><span>Playwright</span><span>Jinja2</span><span>Headless Automation</span>
+              </div>
+              <div class="proj-actions">
+                <a href="#contact" class="proj-btn">Inspect Pipeline ↗</a>
+              </div>
+            </div>
+
+            <!-- Project 6: Kerala Literature Portal -->
+            <div class="proj-card">
+              <div class="proj-badge">EDUCATIONAL PLATFORM</div>
+              <h3 class="proj-title">Kerala Renaissance Literature Portal</h3>
+              <p class="proj-summary">
+                An educational e-learning digital archive dedicated to Kerala renaissance authors, literary analysis, interactive historical timelines, and multilingual reader assessments.
+              </p>
+              <div class="proj-tags">
+                <span>HTML5</span><span>CSS3</span><span>JavaScript</span><span>Flask</span><span>Multilingual Unicode</span>
+              </div>
+              <div class="proj-actions">
+                <a href="#contact" class="proj-btn">Inspect Platform ↗</a>
+              </div>
+            </div>
+
+            <!-- Project 7: Interactive HTML Games Hub -->
+            <div class="proj-card">
+              <div class="proj-badge">GAME DEVELOPMENT</div>
+              <h3 class="proj-title">Interactive HTML Games Hub</h3>
+              <p class="proj-summary">
+                A collection of responsive 2D browser games featuring custom Web Audio API sound synthesizers, high-score tracking, and an administrative control panel for game difficulty.
+              </p>
+              <div class="proj-tags">
+                <span>HTML5 Canvas</span><span>Vanilla JS</span><span>Web Audio</span><span>Local Storage</span><span>Admin Panel</span>
+              </div>
+              <div class="proj-actions">
+                <a href="#town" class="proj-btn">Play in Town ↗</a>
+              </div>
+            </div>
+
+            <!-- Project 8: Business Lead Scraper -->
+            <div class="proj-card">
+              <div class="proj-badge">DATA ENGINEERING</div>
+              <h3 class="proj-title">Business Lead Scraper &amp; Resolver</h3>
+              <p class="proj-summary">
+                Data pipeline capable of multi-source business entity resolution, automated web scraping with Playwright, deduplication, and structured export for lead generation.
+              </p>
+              <div class="proj-tags">
+                <span>Python</span><span>Playwright</span><span>BeautifulSoup4</span><span>Pandas</span><span>Entity Resolution</span>
+              </div>
+              <div class="proj-actions">
+                <a href="#contact" class="proj-btn">Inspect Pipeline ↗</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- PAGE: 🤖 AI LABORATORY & RESEARCH -->
+      <article class="page-view-container" id="page-ailab" aria-label="AI Laboratory Page">
+        <div class="page-sheet">
+          <div class="page-top-nav">
+            <a href="#town" class="btn-back-town" data-cms="page-ailab.btn-back-town"><span class="arr">←</span> Back to Town World</a>
+            <span class="page-location-tag" data-cms="page-ailab.page-location-tag">LOCATION: SOUTH-WEST LIBRARY (AI LAB)</span>
+          </div>
+
+          <header class="page-header">
+            <span class="page-kicker" data-cms="page-ailab.page-kicker">04 / INTELLIGENCE LAB</span>
+            <h2 class="page-title" data-cms="page-ailab.page-title">Local LLMs, Voice AI &amp; Machine Learning</h2>
+            <p class="page-lead" data-cms="page-ailab.page-lead">
+              My research and development in AI focuses on privacy-preserving, local intelligence: sovereign LLMs running on personal hardware, agentic desktop automation, and healthcare predictive models.
+            </p>
+          </header>
+
+          <div class="ai-hero-box">
+            <div class="ai-hero-header">
+              <span class="ai-icon">🧠</span>
+              <div>
+                <h3 data-cms="page-ailab.h3">Autonomous Local LLM Agent Architecture</h3>
+                <span class="ai-sub" data-cms="page-ailab.ai-sub">Local Inference via Ollama · Llama 3 &amp; DeepSeek LLMs · Tool Calling &amp; RAG</span>
+              </div>
+            </div>
+            <p data-cms="page-ailab.p">
+              An offline-capable autonomous LLM agent built in Python and modern developer toolchains. Features local LLM reasoning via Ollama (Llama 3 / DeepSeek), multi-step function execution loops, vector context retrieval, and low-latency system automation for developers without any third-party cloud API dependencies.
+            </p>
+            <div class="ai-tech-pills">
+              <span data-cms="page-ailab.span">Ollama</span><span data-cms="page-ailab.span-2">Llama 3</span><span data-cms="page-ailab.span-3">DeepSeek R1</span><span data-cms="page-ailab.span-4">Python</span><span data-cms="page-ailab.span-5">Vector DB</span><span data-cms="page-ailab.span-6">FastAPI</span>
+            </div>
+          </div>
+
+          <div class="page-grid-2">
+            <div class="info-card">
+              <div class="card-icon">🔬</div>
+              <h3 data-cms="page-ailab.h3-2">Leukemia Microarray Classification</h3>
+              <p data-cms="page-ailab.p-2">
+                Healthcare machine learning pipeline using Scikit-learn. Analyzed high-dimensional gene expression microarray datasets, performing feature extraction, PCA dimensionality reduction, and comparative model benchmarking (SVM, Random Forest, KNN).
+              </p>
+            </div>
+            <div class="info-card">
+              <div class="card-icon">🤖</div>
+              <h3 data-cms="page-ailab.h3-3">Agentic Automation &amp; Playwright</h3>
+              <p data-cms="page-ailab.p-3">
+                Building autonomous agents that interact with web interfaces, extract business intelligence, and generate documentation. Using Playwright with Python for headless browser testing and automated data synthesis.
+              </p>
+            </div>
+            <div class="info-card">
+              <div class="card-icon">💻</div>
+              <h3 data-cms="page-ailab.h3-4">Local Model Deployment</h3>
+              <p data-cms="page-ailab.p-4">
+                Experiencing first-hand the performance characteristics of quantized local models (4-bit/8-bit GGUF via Ollama), prompt engineering, system prompt orchestration, and context caching.
+              </p>
+            </div>
+            <div class="info-card">
+              <div class="card-icon">🛡️</div>
+              <h3 data-cms="page-ailab.h3-5">Privacy &amp; Sovereign AI</h3>
+              <p data-cms="page-ailab.p-5">
+                Committed to exploring private AI pipelines where user data remains on local hardware without recurring API fees or privacy compromises.
+              </p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- PAGE: 💻 SKILLS & TECHNICAL STACK -->
+      <article class="page-view-container" id="page-skills" aria-label="Skills & Technical Stack Page">
+        <div class="page-sheet">
+          <div class="page-top-nav">
+            <a href="#town" class="btn-back-town" data-cms="page-skills.btn-back-town"><span class="arr">←</span> Back to Town World</a>
+            <span class="page-location-tag" data-cms="page-skills.page-location-tag">LOCATION: TECHNICAL TOOLKIT &amp; STACK</span>
+          </div>
+
+          <header class="page-header">
+            <span class="page-kicker" data-cms="page-skills.page-kicker">05 / TOOLKIT &amp; PROFICIENCIES</span>
+            <h2 class="page-title" data-cms="page-skills.page-title">Technologies &amp; Competencies</h2>
+            <p class="page-lead" data-cms="page-skills.page-lead">
+              A comprehensive overview of the programming languages, frameworks, AI tools, databases, and developer utilities I work with across frontend, backend, and data systems.
+            </p>
+          </header>
+
+          <div class="skills-categories-grid">
+            <div class="skill-category">
+              <div class="skill-cat-header">
+                <span class="cat-icon">🎨</span>
+                <h4 data-cms="page-skills.h4">Frontend Development</h4>
+              </div>
+              <div class="skill-pills-list">
+                <span class="skill-pill high" data-cms="page-skills.skill-pill">HTML5 &amp; Semantic CSS3</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-2">JavaScript (ES6+)</span>
+                <span class="skill-pill mid" data-cms="page-skills.skill-pill-3">React-related Development</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-4">Canvas 2D Graphics</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-5">Responsive UI / UX</span>
+              </div>
+            </div>
+
+            <div class="skill-category">
+              <div class="skill-cat-header">
+                <span class="cat-icon">⚙️</span>
+                <h4 data-cms="page-skills.h4-2">Backend &amp; APIs</h4>
+              </div>
+              <div class="skill-pills-list">
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-6">Python</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-7">Flask</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-8">Streamlit</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-9">RESTful APIs</span>
+                <span class="skill-pill mid" data-cms="page-skills.skill-pill-10">Node.js Fundamentals</span>
+              </div>
+            </div>
+
+            <div class="skill-category">
+              <div class="skill-cat-header">
+                <span class="cat-icon">🗄️</span>
+                <h4 data-cms="page-skills.h4-3">Databases &amp; Storage</h4>
+              </div>
+              <div class="skill-pills-list">
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-11">SQLite</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-12">MySQL</span>
+                <span class="skill-pill mid" data-cms="page-skills.skill-pill-13">MariaDB</span>
+                <span class="skill-pill mid" data-cms="page-skills.skill-pill-14">PostgreSQL</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-15">Relational Schema Design</span>
+              </div>
+            </div>
+
+            <div class="skill-category">
+              <div class="skill-cat-header">
+                <span class="cat-icon">📊</span>
+                <h4 data-cms="page-skills.h4-4">Data Science &amp; Analysis</h4>
+              </div>
+              <div class="skill-pills-list">
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-16">Pandas</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-17">NumPy</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-18">Matplotlib</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-19">Scikit-learn</span>
+                <span class="skill-pill mid" data-cms="page-skills.skill-pill-20">Data Visualization</span>
+              </div>
+            </div>
+
+            <div class="skill-category">
+              <div class="skill-cat-header">
+                <span class="cat-icon">🤖</span>
+                <h4 data-cms="page-skills.h4-5">AI, LLMs &amp; Agents</h4>
+              </div>
+              <div class="skill-pills-list">
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-21">Ollama</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-22">Qwen Models</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-23">DeepSeek R1</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-24">Local AI Assistants</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-25">Prompt Engineering</span>
+              </div>
+            </div>
+
+            <div class="skill-category">
+              <div class="skill-cat-header">
+                <span class="cat-icon">🔄</span>
+                <h4 data-cms="page-skills.h4-6">Automation &amp; Scraping</h4>
+              </div>
+              <div class="skill-pills-list">
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-26">Playwright</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-27">Workflow Automation</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-28">AI Agents</span>
+                <span class="skill-pill mid" data-cms="page-skills.skill-pill-29">BeautifulSoup4</span>
+                <span class="skill-pill mid" data-cms="page-skills.skill-pill-30">Headless Scripting</span>
+              </div>
+            </div>
+
+            <div class="skill-category">
+              <div class="skill-cat-header">
+                <span class="cat-icon">🛠️</span>
+                <h4 data-cms="page-skills.h4-7">Dev Tools &amp; Ecosystem</h4>
+              </div>
+              <div class="skill-pills-list">
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-31">Git &amp; GitHub</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-32">VS Code</span>
+                <span class="skill-pill mid" data-cms="page-skills.skill-pill-33">Android Studio</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-34">Antigravity</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-35">Linux / Terminal</span>
+              </div>
+            </div>
+
+            <div class="skill-category">
+              <div class="skill-cat-header">
+                <span class="cat-icon">💡</span>
+                <h4 data-cms="page-skills.h4-8">Other Interests</h4>
+              </div>
+              <div class="skill-pills-list">
+                <span class="skill-pill mid" data-cms="page-skills.skill-pill-36">Flutter</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-37">Interactive UI &amp; Web 3D</span>
+                <span class="skill-pill high" data-cms="page-skills.skill-pill-38">Game Mechanics</span>
+                <span class="skill-pill mid" data-cms="page-skills.skill-pill-39">Cybersecurity Basics</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- PAGE: 📬 CONTACT CENTER -->
+      <article class="page-view-container" id="page-contact" aria-label="Contact Center Page">
+        <div class="page-sheet">
+          <div class="page-top-nav">
+            <a href="#town" class="btn-back-town" data-cms="page-contact.btn-back-town"><span class="arr">←</span> Back to Town World</a>
+            <span class="page-location-tag" data-cms="page-contact.page-location-tag">LOCATION: SOUTH-EAST POST OFFICE (CONTACT)</span>
+          </div>
+
+          <header class="page-header">
+            <span class="page-kicker" data-cms="page-contact.page-kicker">06 / GET IN TOUCH</span>
+            <h2 class="page-title" data-cms="page-contact.page-title">Let’s Build Something Together</h2>
+            <p class="page-lead" data-cms="page-contact.page-lead">
+              I am actively seeking software engineering internships, AI research roles, and creative development opportunities. Whether you have an opportunity or want to discuss local LLMs, my dispatch desk is open!
+            </p>
+          </header>
+
+          <div class="contact-deck">
+            <div class="contact-quick">
+              <div class="mail-box-illustration">
+                <span class="big-envelope">📬</span>
+                <h4 data-cms="page-contact.h4">Direct Message Dispatch</h4>
+                <p data-cms="page-contact.p">Based in Kerala, India (IST timezone). Reach out directly by email or copy the address below.</p>
+              </div>
+              <div class="email-copy-bar">
+                <span class="email-address-text" id="email-text">fao.developer@gmail.com</span>
+                <button class="btn-copy-email" id="btn-copy-email" type="button" title="Copy email address to clipboard">
+                  📋 Copy
+                </button>
+              </div>
+              <a class="btn-email-link" href="mailto:fao.developer@gmail.com?subject=Hello%20from%20Portfolio%20Town">
+                <span data-cms="page-contact.span">Open Mail Client</span>
+                <span>→</span>
+              </a>
+            </div>
+
+            <div class="contact-socials-card">
+              <h4 data-cms="page-contact.h4-2">Professional Channels</h4>
+              <p data-cms="page-contact.p-2">Connect with me across GitHub, LinkedIn, or view credentials:</p>
+              <div class="social-links-grid">
+                <a class="social-card" href="https://github.com" target="_blank" rel="noopener noreferrer">
+                  <span class="social-icon">🐙</span>
+                  <div class="social-info">
+                    <strong data-cms="page-contact.strong">GitHub Profile</strong>
+                    <small data-cms="page-contact.small">Open-source repositories &amp; code</small>
+                  </div>
+                  <span class="social-arrow">↗</span>
+                </a>
+                <a class="social-card" href="https://linkedin.com" target="_blank" rel="noopener noreferrer">
+                  <span class="social-icon">💼</span>
+                  <div class="social-info">
+                    <strong data-cms="page-contact.strong-2">LinkedIn Network</strong>
+                    <small data-cms="page-contact.small-2">Professional background &amp; connections</small>
+                  </div>
+                  <span class="social-arrow">↗</span>
+                </a>
+                <a class="social-card" href="#about">
+                  <span class="social-icon">🎓</span>
+                  <div class="social-info">
+                    <strong data-cms="page-contact.strong-3">Rajagiri College of Social Sciences</strong>
+                    <small data-cms="page-contact.small-3">Kalamassery, Kerala, India</small>
+                  </div>
+                  <span class="social-arrow">→</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ====================================================================
+           VIEW 3: PROFESSIONAL / RESUME MODE (Executive Recruiter View)
+           ==================================================================== -->
+      <section class="pro-view-container active" id="view-pro" aria-label="Resume">
+        <div class="resume">
+          <header class="rs-head">
+            <div class="rs-identity">
+              <span class="rs-avatar" aria-hidden="true"></span>
+              <div>
+                <h1 class="rs-name">Vivek</h1>
+                <p class="rs-title">Software Developer &amp; AI Enthusiast</p>
+                <ul class="rs-contact">
+                  <li><a href="mailto:fao.developer@gmail.com">fao.developer@gmail.com</a></li>
+                  <li>Kalamassery, Kerala, India (IST)</li>
+                  <li>Open to internships &amp; roles</li>
+                </ul>
+              </div>
+            </div>
+            <div class="rs-actions">
+              <button class="rs-btn rs-btn-primary" id="btn-print-resume" type="button">Download PDF</button>
+              <a href="#town" class="rs-btn" id="btn-return-town-pro">Explore the interactive town →</a>
+            </div>
+          </header>
+
+          <div class="rs-body">
+            <div class="rs-main">
+              <section class="rs-section" id="pro-about">
+                <h2 class="rs-sec-title" data-cms="view-pro.rs-sec-title">Summary</h2>
+                <p class="rs-lead">
+                  Computer science student and developer who turns ideas into working software, from full-stack web applications to offline AI agents running on local LLMs. Comfortable across Python, Flask, JavaScript and browser automation, with hands-on machine learning research experience.
+                </p>
+              </section>
+
+              <section class="rs-section" id="pro-projects">
+                <h2 class="rs-sec-title" data-cms="view-pro.rs-sec-title-2">Selected Projects</h2>
+              <article class="rs-project">
+                <div class="rs-project-head">
+                  <h3>Autonomous Local LLM Agent</h3>
+                  <span class="rs-stack">Python · Ollama · Llama 3 · Tool Calling · RAG</span>
+                </div>
+                <p>Autonomous desktop assistant operating completely offline with local LLM models (Ollama, Llama 3, DeepSeek). Multi-step tool execution, local file search, and automated developer workflow tasks.</p>
+              </article>
+              <article class="rs-project">
+                <div class="rs-project-head">
+                  <h3>Treasure Hunt Application — SPLENDORE Fest</h3>
+                  <span class="rs-stack">JavaScript · Python · HTML5 Canvas · Real-Time Events</span>
+                </div>
+                <p>Real-time game platform built for Rajagiri's annual festival: automated clue progression, GPS checkpoint validation, anti-cheat mechanisms, and a live spectator scoreboard.</p>
+              </article>
+              <article class="rs-project">
+                <div class="rs-project-head">
+                  <h3>Blood Donation Web Application</h3>
+                  <span class="rs-stack">Python · Flask · SQLite/MySQL · RBAC</span>
+                </div>
+                <p>Campus donor management platform with Faculty, Administrator and Student dashboards, emergency request broadcasting, and donor compatibility matching.</p>
+              </article>
+              <article class="rs-project">
+                <div class="rs-project-head">
+                  <h3>Leukemia Classification Using Machine Learning</h3>
+                  <span class="rs-stack">Python · Scikit-learn · Pandas · NumPy · Matplotlib</span>
+                </div>
+                <p>Bioinformatics research classifying leukemia types from high-dimensional microarray gene-expression data, benchmarking SVM, Random Forest and KNN.</p>
+              </article>
+              <article class="rs-project">
+                <div class="rs-project-head">
+                  <h3>Student Profile PDF Generator</h3>
+                  <span class="rs-stack">Python · Flask · Playwright · Jinja2</span>
+                </div>
+                <p>Document generation service using Flask and headless Playwright to compile database profiles into publication-ready PDF resumes.</p>
+              </article>
+              <article class="rs-project">
+                <div class="rs-project-head">
+                  <h3>Business Lead Scraper &amp; Resolver</h3>
+                  <span class="rs-stack">Python · Playwright · BeautifulSoup4 · Pandas</span>
+                </div>
+                <p>Data pipeline for multi-source business entity resolution: automated scraping, deduplication, and structured export for lead generation.</p>
+              </article>
+              <article class="rs-project">
+                <div class="rs-project-head">
+                  <h3>Kerala Renaissance Literature Portal</h3>
+                  <span class="rs-stack">HTML5 · CSS3 · JavaScript · Flask · Unicode</span>
+                </div>
+                <p>E-learning archive on Kerala renaissance authors with literary analysis, interactive timelines, and multilingual reader assessments.</p>
+              </article>
+              <article class="rs-project">
+                <div class="rs-project-head">
+                  <h3>Interactive HTML Games Hub</h3>
+                  <span class="rs-stack">HTML5 Canvas · Vanilla JS · Web Audio</span>
+                </div>
+                <p>Collection of responsive 2D browser games with Web Audio sound synthesis, high-score tracking, and an admin panel for difficulty.</p>
+              </article>
+              </section>
+
+              <section class="rs-section" id="pro-ai">
+                <h2 class="rs-sec-title" data-cms="view-pro.rs-sec-title-3">AI &amp; Research</h2>
+                <ul class="rs-list">
+                  <li><strong>Local LLM agents:</strong> offline reasoning via Ollama (Llama 3, DeepSeek R1), multi-step function execution loops and vector context retrieval, with no third-party cloud APIs.</li>
+                  <li><strong>ML pipelines:</strong> feature extraction, PCA dimensionality reduction and comparative model benchmarking on gene-expression microarray data.</li>
+                  <li><strong>Agentic automation:</strong> Playwright-driven agents that operate web interfaces, extract structured data and generate documentation.</li>
+                  <li><strong>Local model deployment:</strong> quantized 4-bit/8-bit GGUF models, prompt engineering, system-prompt orchestration and context caching.</li>
+                </ul>
+              </section>
+            </div>
+
+            <aside class="rs-side">
+              <section class="rs-section" id="pro-education">
+                <h2 class="rs-sec-title" data-cms="view-pro.rs-sec-title-4">Education</h2>
+                <h3 class="rs-side-h">BSc Computer Science</h3>
+                <p class="rs-muted">Rajagiri College of Social Sciences, Kalamassery</p>
+                <p class="rs-muted">2024 — Present · Year 3</p>
+                <p class="rs-small">Data Structures, Database Systems, Operating Systems, Algorithm Analysis, Web Systems, Machine Learning.</p>
+              </section>
+
+              <section class="rs-section" id="pro-skills">
+                <h2 class="rs-sec-title" data-cms="view-pro.rs-sec-title-5">Skills</h2>
+                <dl class="rs-skills">
+                  <dt>Languages &amp; Web</dt><dd>Python, JavaScript (ES6+), HTML5, CSS3, Canvas 2D</dd>
+                  <dt>Backend</dt><dd>Flask, Streamlit, REST APIs, Node.js fundamentals</dd>
+                  <dt>Data &amp; ML</dt><dd>Pandas, NumPy, Scikit-learn, Matplotlib</dd>
+                  <dt>AI &amp; LLMs</dt><dd>Ollama, DeepSeek R1, Qwen, Llama 3, prompt engineering, RAG</dd>
+                  <dt>Databases</dt><dd>SQLite, MySQL, MariaDB, PostgreSQL</dd>
+                  <dt>Automation</dt><dd>Playwright, BeautifulSoup4, headless scripting</dd>
+                  <dt>Tools</dt><dd>Git, GitHub, VS Code, Android Studio, Linux / Bash</dd>
+                </dl>
+              </section>
+
+              <section class="rs-section" id="pro-contact">
+                <h2 class="rs-sec-title" data-cms="view-pro.rs-sec-title-6">Contact</h2>
+                <p><a href="mailto:fao.developer@gmail.com">fao.developer@gmail.com</a></p>
+                <p class="rs-muted">Kerala, India · IST (UTC+5:30)</p>
+              </section>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="site-footer" id="site-footer">
+      <div class="footer-inner">
+        <div class="footer-left">
+          <span class="footer-brand" data-cms="site-footer.footer-brand">PORTFOLIO TOWN // RAJAGIRI CS</span>
+          <span class="footer-note" data-cms="site-footer.footer-note">Handcrafted with HTML5, CSS3, Vanilla JS &amp; 16-Bit Pixel Art.</span>
+        </div>
+        <div class="footer-center" data-cms="site-footer.footer-center">
+          <span class="footer-coords">📍 RAJAGIRI COLLEGE · KOCHI, KERALA [IST]</span>
+        </div>
+        <div class="footer-right">
+          <a href="#town" class="back-to-top game-only" id="back-to-top">Back to Town ↑</a>
+          <a href="#town" class="back-to-top pro-only" data-route="town" data-cms="site-footer.back-to-top">Play the portfolio game ↗</a>
+          <span class="footer-copy" data-cms="site-footer.footer-copy">© 2026 Vivek · Software Developer &amp; AI Enthusiast</span>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Global Spotlight Command Palette (Cmd+K / Ctrl+K) -->
+    <div class="command-palette-overlay" id="command-palette" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="palette-box">
+        <div class="palette-search-bar">
+          <span class="palette-search-icon">🔍</span>
+          <input type="text" class="palette-input" id="palette-input" placeholder="Type a destination or action... (e.g. Projects, Academics, Kaapi, Skills)" aria-label="Spotlight Command Search" autocomplete="off" />
+          <kbd class="palette-esc-kbd" data-cms="command-palette.palette-esc-kbd">Esc</kbd>
+        </div>
+        <div class="palette-results-list" id="palette-results" role="listbox">
+          <!-- Populated by JavaScript -->
+        </div>
+        <div class="palette-footer">
+          <span class="palette-hint" data-cms="command-palette.palette-hint"><kbd>↑</kbd> <kbd>↓</kbd> navigate · <kbd>Enter</kbd> jump · <kbd>Esc</kbd> close</span>
+          <span class="palette-brand" data-cms="command-palette.palette-brand">VIVEK // OS COMMAND DECK</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification Overlay -->
+    <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+    <!-- Building interiors shown in the in-game dialog (text managed via the control panel) -->
+    <template id="dialog-tpl-about">
+    <div class="modal-speech-bubble">
+      <h3 data-cms="dialog-tpl-about.h3"><span>🏠</span> Welcome to Vivek's House! 👋</h3>
+      <p data-cms="dialog-tpl-about.p">
+        Hey there! I'm Vivek, a Computer Science student at Rajagiri College of Social Sciences, Kalamassery.
+        I'm a software developer and AI enthusiast driven by turning ambitious ideas into reality through elegant code.
+        From responsive web applications to local LLM agent workflows, every project is an exciting challenge to solve!
+      </p>
+    </div>
+
+    <div class="modal-grid-cards">
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🎓</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-about.modal-fact-label">Education</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-about.modal-fact-val">BSc Computer Science (3rd Year)</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🏛️</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-about.modal-fact-label-2">College</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-about.modal-fact-val-2">Rajagiri College of Social Sciences</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">📍</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-about.modal-fact-label-3">Location</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-about.modal-fact-val-3">Kerala, India (IST / UTC+5:30)</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">💻</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-about.modal-fact-label-4">Character Class</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-about.modal-fact-val-4">Code Explorer · Level 3 Scholar</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">📚</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-about.modal-fact-label-5">Current Reading</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-about.modal-fact-val-5">Distributed Systems & Local LLM Agents</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">💼</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-about.modal-fact-label-6">Opportunities</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-about.modal-fact-val-6">Open for Software & AI Engineering Roles</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions-bar">
+      <button class="modal-btn modal-btn-gold" type="button" data-modal-route="projects">
+        <span data-cms="dialog-tpl-about.span">Explore My Projects</span> <span>➔</span>
+      </button>
+      <button class="modal-btn modal-btn-teal" type="button" data-modal-route="ailab">
+        <span data-cms="dialog-tpl-about.span-2">Inspect AI Lab</span> <span>➔</span>
+      </button>
+      <button class="modal-btn modal-btn-brick" type="button" data-modal-route="contact">
+        <span data-cms="dialog-tpl-about.span-3">Contact Vivek</span> <span>➔</span>
+      </button>
+    </div>
+    </template>
+    <template id="dialog-tpl-projects">
+    <div class="modal-speech-bubble">
+      <h3 data-cms="dialog-tpl-projects.h3"><span>🚀</span> Craftsman Studio — Featured Engineering Projects</h3>
+      <p data-cms="dialog-tpl-projects.p">
+        Welcome to my projects workshop! I build full-stack web applications, game engines, student tools, and local AI software with deep attention to interactive polish and performance.
+      </p>
+    </div>
+
+    <div class="modal-project-item">
+      <div class="modal-project-header">
+        <span class="modal-project-title" data-cms="dialog-tpl-projects.modal-project-title">🌐 Interactive Pixel Town Portfolio</span>
+        <span class="modal-project-badge" data-cms="dialog-tpl-projects.modal-project-badge">ACTIVE FLAGSHIP</span>
+      </div>
+      <p class="modal-project-desc" data-cms="dialog-tpl-projects.modal-project-desc">
+        A playable 16-bit RPG web portfolio featuring Canvas 2D collision physics, Web Audio chiptune synthesizer, 4 Kerala weather atmospheres, and high-performance pixel rendering.
+      </p>
+      <div class="modal-project-tags">
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag">Canvas 2D</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-2">Web Audio API</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-3">Vanilla JS</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-4">CSS3 Design System</span>
+      </div>
+    </div>
+
+    <div class="modal-project-item">
+      <div class="modal-project-header">
+        <span class="modal-project-title" data-cms="dialog-tpl-projects.modal-project-title-2">🤖 Autonomous Local LLM Agent</span>
+        <span class="modal-project-badge" data-cms="dialog-tpl-projects.modal-project-badge-2">AI AGENT</span>
+      </div>
+      <p class="modal-project-desc" data-cms="dialog-tpl-projects.modal-project-desc-2">
+        Autonomous desktop assistant powered by local LLMs (Ollama, DeepSeek-R1) with tool-calling capabilities, file search, and system commands running entirely offline.
+      </p>
+      <div class="modal-project-tags">
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-5">Python</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-6">Ollama</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-7">Llama 3</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-8">DeepSeek-R1</span>
+      </div>
+    </div>
+
+    <div class="modal-project-item">
+      <div class="modal-project-header">
+        <span class="modal-project-title" data-cms="dialog-tpl-projects.modal-project-title-3">📊 Rajagiri Attendance Tracker</span>
+        <span class="modal-project-badge" data-cms="dialog-tpl-projects.modal-project-badge-3">CAMPUS TOOL</span>
+      </div>
+      <p class="modal-project-desc" data-cms="dialog-tpl-projects.modal-project-desc-3">
+        Coursework and attendance calculator designed for Rajagiri students to track lecture cutoffs, predict target percentages, and prevent attendance shortage.
+      </p>
+      <div class="modal-project-tags">
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-9">JavaScript</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-10">LocalStorage</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-11">Data Analytics</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-12">UI/UX</span>
+      </div>
+    </div>
+
+    <div class="modal-project-item">
+      <div class="modal-project-header">
+        <span class="modal-project-title" data-cms="dialog-tpl-projects.modal-project-title-4">⚡ PromptForge Studio</span>
+        <span class="modal-project-badge" data-cms="dialog-tpl-projects.modal-project-badge-4">DEV TOOL</span>
+      </div>
+      <p class="modal-project-desc" data-cms="dialog-tpl-projects.modal-project-desc-4">
+        Interactive prompt engineering workbench for benchmarking local LLM inferences, system prompt variations, few-shot examples, and latency metrics.
+      </p>
+      <div class="modal-project-tags">
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-13">FastAPI</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-14">Transformers</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-15">React</span>
+        <span class="modal-tag" data-cms="dialog-tpl-projects.modal-tag-16">Prompt Engineering</span>
+      </div>
+    </div>
+
+    <div class="modal-actions-bar">
+      <button class="modal-btn modal-btn-gold" type="button" data-modal-route="projects">
+        <span data-cms="dialog-tpl-projects.span">Open Full Project Gallery (8 Projects)</span> <span>↗</span>
+      </button>
+      <button class="modal-btn modal-btn-teal" type="button" data-modal-route="ailab">
+        <span data-cms="dialog-tpl-projects.span-2">Inspect AI Lab</span> <span>➔</span>
+      </button>
+      <button class="modal-btn modal-btn-brick" type="button" data-modal-route="contact">
+        <span data-cms="dialog-tpl-projects.span-3">Collaborate on Projects</span> <span>➔</span>
+      </button>
+    </div>
+    </template>
+    <template id="dialog-tpl-skills">
+    <div class="modal-speech-bubble">
+      <h3 data-cms="dialog-tpl-skills.h3"><span>🤖</span> Autonomous AI Laboratory & Tech Arsenal</h3>
+      <p data-cms="dialog-tpl-skills.p">
+        Step into the intelligence laboratory! Here I research and deploy open-source local LLMs, retrieval-augmented generation (RAG) pipelines, and agentic developer workflows.
+      </p>
+    </div>
+
+    <div class="modal-grid-cards">
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🦙</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-skills.modal-fact-label">Local LLM Systems</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-skills.modal-fact-val">Ollama, Llama 3, DeepSeek-R1, Mistral, GGUF</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🔎</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-skills.modal-fact-label-2">Retrieval & RAG</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-skills.modal-fact-val-2">Vector Embeddings, Semantic Search & Context Chunking</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🛠️</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-skills.modal-fact-label-3">Agentic Tool-Calling</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-skills.modal-fact-val-3">Function Execution Loops, Multi-step Task Pipelines</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🧪</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-skills.modal-fact-label-4">Speech & Audio Interface</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-skills.modal-fact-val-4">Speech Recognition, Audio Synthesis & Agentic Feedback</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-speech-bubble" style="background: #fdfaf3;">
+      <h3 style="font-size: 1rem; margin-bottom: 4px;" data-cms="dialog-tpl-skills.h3-2">💻 Core Development Languages & Tools</h3>
+      <div class="modal-project-tags" style="margin-top: 6px;">
+        <span class="modal-tag" data-cms="dialog-tpl-skills.modal-tag">Python</span>
+        <span class="modal-tag" data-cms="dialog-tpl-skills.modal-tag-2">JavaScript (ES6+)</span>
+        <span class="modal-tag" data-cms="dialog-tpl-skills.modal-tag-3">HTML5 / Modern CSS</span>
+        <span class="modal-tag" data-cms="dialog-tpl-skills.modal-tag-4">FastAPI</span>
+        <span class="modal-tag" data-cms="dialog-tpl-skills.modal-tag-5">Node.js</span>
+        <span class="modal-tag" data-cms="dialog-tpl-skills.modal-tag-6">SQL / SQLite</span>
+        <span class="modal-tag" data-cms="dialog-tpl-skills.modal-tag-7">Linux / Bash</span>
+        <span class="modal-tag" data-cms="dialog-tpl-skills.modal-tag-8">Git / GitHub</span>
+        <span class="modal-tag" data-cms="dialog-tpl-skills.modal-tag-9">Docker</span>
+        <span class="modal-tag" data-cms="dialog-tpl-skills.modal-tag-10">VS Code</span>
+      </div>
+    </div>
+
+    <div class="modal-actions-bar">
+      <button class="modal-btn modal-btn-gold" type="button" data-modal-route="ailab">
+        <span data-cms="dialog-tpl-skills.span">Open Dedicated AI Lab Page</span> <span>↗</span>
+      </button>
+      <button class="modal-btn modal-btn-teal" type="button" data-modal-route="skills">
+        <span data-cms="dialog-tpl-skills.span-2">View Full Skill Matrix</span> <span>➔</span>
+      </button>
+      <button class="modal-btn modal-btn-brick" type="button" data-modal-route="contact">
+        <span data-cms="dialog-tpl-skills.span-3">Discuss AI Projects</span> <span>➔</span>
+      </button>
+    </div>
+    </template>
+    <template id="dialog-tpl-contact">
+    <div class="modal-speech-bubble">
+      <h3 data-cms="dialog-tpl-contact.h3"><span>📬</span> Town Post Office — Let's Connect!</h3>
+      <p data-cms="dialog-tpl-contact.p">
+        Whether you want to discuss a full-stack engineering role, an AI collaboration, or have feedback on this pixel portfolio, my inbox is always open.
+      </p>
+    </div>
+
+    <div class="modal-grid-cards">
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">✉️</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-contact.modal-fact-label">Direct Email</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-contact.modal-fact-val">vivek.dev.contact@gmail.com</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">📍</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-contact.modal-fact-label-2">Location Base</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-contact.modal-fact-val-2">Kerala, India (IST / UTC+5:30)</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🐙</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-contact.modal-fact-label-3">GitHub Repository</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-contact.modal-fact-val-3">github.com (Open Source Projects)</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">💼</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-contact.modal-fact-label-4">LinkedIn</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-contact.modal-fact-val-4">Professional Network & Inquiries</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions-bar">
+      <button class="modal-btn modal-btn-gold" type="button" id="btn-modal-copy-email">
+        <span data-cms="dialog-tpl-contact.span">Copy Email Address</span> <span>📋</span>
+      </button>
+      <a class="modal-btn modal-btn-teal" href="mailto:vivek.dev.contact@gmail.com" target="_blank" rel="noopener">
+        <span data-cms="dialog-tpl-contact.span-2">Send Direct Email</span> <span>✉️</span>
+      </a>
+      <button class="modal-btn modal-btn-brick" type="button" data-modal-route="contact">
+        <span data-cms="dialog-tpl-contact.span-3">Open Full Contact Page</span> <span>↗</span>
+      </button>
+    </div>
+    </template>
+    <template id="dialog-tpl-observatory">
+    <div class="modal-speech-bubble">
+      <h3 data-cms="dialog-tpl-observatory.h3"><span>🔭</span> AI &amp; Cloud Observatory — Intelligence Research Tower</h3>
+      <p data-cms="dialog-tpl-observatory.p">
+        Perched on the eastern cliff above the river, this high-tech observatory tracks Vivek's research into local inference pipelines, autonomous agent architectures, model evaluation, and Apple Silicon Metal acceleration.
+      </p>
+    </div>
+
+    <div class="modal-grid-cards">
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🎓</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-observatory.modal-fact-label">Reasoning Engine</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-observatory.modal-fact-val">DeepSeek-R1 (Distilled 7B/14B) via Ollama</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">💻</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-observatory.modal-fact-label-2">Hardware Acceleration</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-observatory.modal-fact-val-2">Apple Silicon Metal Engine &amp; Unified Memory</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🤖</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-observatory.modal-fact-label-3">Agent Orchestration</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-observatory.modal-fact-val-3">Multi-tool dispatch, bash execution, web retrieval</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">📍</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-observatory.modal-fact-label-4">Open Source Models</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-observatory.modal-fact-val-4">Llama 3.1, Mistral Nemo, Qwen 2.5, Phi-3.5</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-speech-bubble" style="background: #fdfaf3;">
+      <h3 style="font-size: 1rem; margin-bottom: 4px;" data-cms="dialog-tpl-observatory.h3-2">📊 Active Experiments &amp; Benchmarks</h3>
+      <p style="font-size: 0.88rem; color: #4b5563; margin-top: 4px;" data-cms="dialog-tpl-observatory.p-2">
+        Evaluating real-world latency, structured JSON function calling, context window preservation during multi-turn coding sessions, and local privacy guarantees.
+      </p>
+    </div>
+
+    <div class="modal-actions-bar">
+      <button class="modal-btn modal-btn-gold" type="button" data-modal-route="pro">
+        <span data-cms="dialog-tpl-observatory.span">Explore Dedicated AI Lab Page</span> <span>↗</span>
+      </button>
+      <button class="modal-btn modal-btn-teal" type="button" data-modal-route="projects">
+        <span data-cms="dialog-tpl-observatory.span-2">Inspect 8 Built Applications</span> <span>➔</span>
+      </button>
+      <button class="modal-btn modal-btn-brick" type="button" data-modal-route="contact">
+        <span data-cms="dialog-tpl-observatory.span-3">Discuss AI Projects</span> <span>➔</span>
+      </button>
+    </div>
+    </template>
+    <template id="dialog-tpl-kaapi">
+    <div class="modal-speech-bubble">
+      <h3 data-cms="dialog-tpl-kaapi.h3"><span>☕</span> Kerala Kaapi Roastery &amp; Developer Focus Hub</h3>
+      <p data-cms="dialog-tpl-kaapi.p">
+        Welcome to Vivek's creative fuel station! Located along the West Trail, this artisanal coffee roastery brews traditional Kerala filter coffee that powers long coding sessions, algorithm design, and hackathons.
+      </p>
+    </div>
+
+    <div class="modal-grid-cards">
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">📝</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-kaapi.modal-fact-label">Signature Brew</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-kaapi.modal-fact-val">Kerala Filter Kaapi (Wayanad Arabica &amp; Chicory)</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🌿</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-kaapi.modal-fact-label-2">Focus Fuel Boost</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-kaapi.modal-fact-val-2">+35% Movement Speed &amp; Cognitive Flow</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🐧</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-kaapi.modal-fact-label-3">Developer Rig</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-kaapi.modal-fact-val-3">MacBook Pro, Dual Monitors, Mechanical Keyboard</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🤖</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-kaapi.modal-fact-label-4">Soundscape</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-kaapi.modal-fact-val-4">16-Bit Chiptune Synthesizer &amp; Ambient Rain</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions-bar">
+      <button class="modal-btn modal-btn-gold" type="button" id="modal-kaapi-boost-btn">
+        <span data-cms="dialog-tpl-kaapi.span">☕ Drink Fresh Kaapi (+35% Speed)</span> <span>⚡</span>
+      </button>
+      <button class="modal-btn modal-btn-teal" type="button" data-modal-route="about">
+        <span data-cms="dialog-tpl-kaapi.span-2">About Vivek's Journey</span> <span>➔</span>
+      </button>
+      <button class="modal-btn modal-btn-brick" type="button" data-modal-route="contact">
+        <span data-cms="dialog-tpl-kaapi.span-3">Send a Message</span> <span>➔</span>
+      </button>
+    </div>
+    </template>
+    <template id="dialog-tpl-arcade">
+    <div class="modal-speech-bubble">
+      <h3 data-cms="dialog-tpl-arcade.h3"><span>🕹️</span> Tech Stack Cyber Arcade — Skill Matrix &amp; Tool Arsenal</h3>
+      <p data-cms="dialog-tpl-arcade.p">
+        Welcome to the Cyber Arcade! Explore Vivek's full technical toolkit, programming languages, web frameworks, developer tools, and core computer science fundamentals.
+      </p>
+    </div>
+
+    <div class="modal-grid-cards">
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🐍</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-arcade.modal-fact-label">Programming Languages</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-arcade.modal-fact-val">Python, JavaScript (ES6+), C, C++, PHP, SQL</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🌐</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-arcade.modal-fact-label-2">Web Technologies</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-arcade.modal-fact-val-2">React, Node.js, Express, TailwindCSS, HTML5, CSS3</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🧰</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-arcade.modal-fact-label-3">Dev Tools &amp; Ops</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-arcade.modal-fact-val-3">Git, GitHub, Docker, Postman, Linux, macOS, Ollama</span>
+        </div>
+      </div>
+      <div class="modal-fact-card">
+        <span class="modal-fact-icon">🧩</span>
+        <div class="modal-fact-content">
+          <span class="modal-fact-label" data-cms="dialog-tpl-arcade.modal-fact-label-4">Computer Science Core</span>
+          <span class="modal-fact-val" data-cms="dialog-tpl-arcade.modal-fact-val-4">Data Structures, Algorithms, OOP, DBMS, OS, Networks</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions-bar">
+      <button class="modal-btn modal-btn-gold" type="button" data-modal-route="skills">
+        <span data-cms="dialog-tpl-arcade.span">Open Technical Skills Matrix</span> <span>↗</span>
+      </button>
+      <button class="modal-btn modal-btn-teal" type="button" data-modal-route="projects">
+        <span data-cms="dialog-tpl-arcade.span-2">Inspect 8 Built Applications</span> <span>➔</span>
+      </button>
+      <button class="modal-btn modal-btn-brick" type="button" data-modal-route="contact">
+        <span data-cms="dialog-tpl-arcade.span-3">Connect with Vivek</span> <span>➔</span>
+      </button>
+    </div>
+    </template>
+
+    <!-- Site content: server.py inlines content.json here; render-content.js falls back to fetching it -->
+    <script id="site-content" type="application/json"><!--SITE_CONTENT--></script>
+    <script src="render-content.js"></script>
+    <script src="script.js"></script>
+    <script src="swarm-intro.js"></script>
+  </body>
+</html>
