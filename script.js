@@ -35,8 +35,14 @@
   const btnModePro = document.querySelector('#btn-mode-pro');
   const btnReturnTownPro = document.querySelector('#btn-return-town-pro');
 
-  // Disable browser smoothing for razor-sharp pixel rendering
-  ctx.imageSmoothingEnabled = false;
+  // World coordinate space (the town map); the canvas backing store is resized to
+  // the displayed size, and a camera maps world units to canvas pixels
+  const WORLD_W = 960;
+  const WORLD_H = 540;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   // --- Asset Loading ---
   const townMapImg = new Image();
@@ -44,6 +50,90 @@
 
   const playerSprite = new Image();
   playerSprite.src = 'assets/player-16bit.png';
+
+  // --- 16-bit sprite sheets (optional) ---
+  // assets/player-sheet.png and assets/npc-1.png … npc-6.png: a 3 x 4 grid,
+  // rows = facing down, left, right, up; columns = step A, standing, step B.
+  // Generated art usually comes on a flat background colour: it is keyed out,
+  // each frame is trimmed, and frames share one scale with feet aligned.
+  // Missing files simply fall back to the single sprite / drawn townsfolk.
+  const SHEET_COLS = 3;
+  const SHEET_ROWS = 4;
+  const SHEET_DIR_ROW = { down: 0, left: 1, right: 2, up: 3 };
+
+  function buildSheet(img) {
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    const data = g.getImageData(0, 0, W, H);
+    const px = data.data;
+    // Background = the corner colour; remove everything close to it
+    const br = px[0], bgc = px[1], bb = px[2];
+    for (let i = 0; i < px.length; i += 4) {
+      const d = Math.abs(px[i] - br) + Math.abs(px[i + 1] - bgc) + Math.abs(px[i + 2] - bb);
+      if (px[i + 3] < 20 || d < 70) px[i + 3] = 0;
+    }
+    g.putImageData(data, 0, 0);
+
+    const cw = Math.floor(W / SHEET_COLS), ch = Math.floor(H / SHEET_ROWS);
+    const frames = [];
+    let maxH = 1;
+    for (let r = 0; r < SHEET_ROWS; r++) {
+      frames.push([]);
+      for (let col = 0; col < SHEET_COLS; col++) {
+        let x0 = cw, y0 = ch, x1 = -1, y1 = -1;
+        for (let y = 0; y < ch; y++) {
+          for (let x = 0; x < cw; x++) {
+            if (px[((r * ch + y) * W + col * cw + x) * 4 + 3] > 40) {
+              if (x < x0) x0 = x;
+              if (x > x1) x1 = x;
+              if (y < y0) y0 = y;
+              if (y > y1) y1 = y;
+            }
+          }
+        }
+        const f = x1 < 0 ? null : { sx: col * cw + x0, sy: r * ch + y0, sw: x1 - x0 + 1, sh: y1 - y0 + 1 };
+        if (f) maxH = Math.max(maxH, f.sh);
+        frames[r].push(f);
+      }
+    }
+    return { canvas: c, frames, maxH };
+  }
+
+  function loadSheet(src) {
+    const holder = { sheet: null };
+    const img = new Image();
+    img.onload = () => {
+      try { holder.sheet = buildSheet(img); } catch (_) { holder.sheet = null; }
+    };
+    img.src = src;
+    return holder;
+  }
+
+  // Only requested once the sheets exist (content.json → game.spriteSheets), so
+  // visitors never trigger 404s for art that hasn't been added yet
+  // spriteSheets lists which sheets exist, e.g. ["player", "npc-1"]
+  const sheetList = (window.SITE_CONTENT && window.SITE_CONTENT.game && window.SITE_CONTENT.game.spriteSheets) || [];
+  const hasSheet = name => Array.isArray(sheetList) && sheetList.includes(name);
+  const playerSheet = hasSheet('player') ? loadSheet('assets/player-sheet.png') : { sheet: null };
+  const npcSheets = [1, 2, 3, 4, 5, 6].map(n => (hasSheet(`npc-${n}`) ? loadSheet(`assets/npc-${n}.png`) : { sheet: null }));
+
+  // Draws one frame with its feet at (x, footY), sized so the tallest frame = height
+  function drawSheetFrame(sheet, row, col, x, footY, height) {
+    const f = sheet.frames[row][col] || sheet.frames[row][1] || sheet.frames[0][1];
+    if (!f) return false;
+    const k = height / sheet.maxH;
+    ctx.drawImage(sheet.canvas, f.sx, f.sy, f.sw, f.sh,
+      Math.round(x - (f.sw * k) / 2), Math.round(footY - f.sh * k), f.sw * k, f.sh * k);
+    return true;
+  }
+
+  // Classic 4-beat walk: step A, stand, step B, stand
+  const WALK_CYCLE = [0, 1, 2, 1];
+  const walkFrame = stepTimer => WALK_CYCLE[Math.floor(stepTimer * 0.55) % 4];
 
   const townAssetsImg = new Image();
   townAssetsImg.src = 'assets/town-assets-16bit.png';
@@ -252,63 +342,101 @@
     });
   });
 
-  // --- Precision Obstacle Collision Rectangles (Mapped Exactly to 16-Bit Town Map) ---
+  // --- Collision, traced from the town map art (feet only touch paths, yards, bridge) ---
+  // Tall scenery redrawn over anyone standing behind it (depth-sorted at its base).
+  // r = rect region, e = ellipse canopy, p = polygon (pines). base = ground line.
+  const OCCLUDERS = [
+    { r: [315, 117, 18, 71], base: 187 },            // nook lamppost
+    { r: [396, 212, 16, 59], base: 270 },            // plaza lampposts
+    { r: [535, 212, 17, 59], base: 270 },
+    { r: [395, 316, 17, 58], base: 373 },
+    { r: [535, 316, 17, 58], base: 373 },
+    { r: [152, 412, 23, 62], base: 473 },            // lab lamppost
+    { r: [697, 437, 18, 63], base: 498 },            // contact yard lamppost
+    { r: [423, 452, 25, 52], base: 503 },            // south stair pillars
+    { r: [505, 452, 25, 52], base: 503 },
+    { r: [585, 382, 27, 54], base: 434 },            // mailbox
+    { r: [608, 344, 37, 88], base: 431 },            // post office sign
+    { p: [[279, 205], [298, 262], [260, 262]], r2: [274, 258, 10, 10], base: 268 }, // roadside pine
+    { p: [[753, 431], [780, 492], [726, 492]], r2: [748, 488, 10, 10], base: 498 }, // contact yard pine
+    { e: [355, 305, 26, 28], r2: [348, 328, 15, 26], base: 355 },   // tree west of plaza
+    { e: [307, 452, 31, 26], r2: [300, 470, 14, 15], base: 485 },   // tree by the south walk
+    { e: [612, 285, 23, 18], r2: [606, 296, 12, 10], base: 306 },   // tree east of plaza
+    { e: [558, 455, 31, 28], base: 487 }                              // round tree by contact path
+  ].map(o => {
+    // bounding box for overlap tests
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const add = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+    for (const rr of [o.r, o.r2]) if (rr) { add(rr[0], rr[1]); add(rr[0] + rr[2], rr[1] + rr[3]); }
+    if (o.e) { add(o.e[0] - o.e[2], o.e[1] - o.e[3]); add(o.e[0] + o.e[2], o.e[1] + o.e[3]); }
+    if (o.p) o.p.forEach(([x, y]) => add(x, y));
+    return { ...o, box: [x0, y0, x1 - x0, y1 - y0] };
+  });
+
   const COLLIDERS = [
-    // --- Top Mountains & Boundary Forests ---
-    { x: 0, y: 0, w: 345, h: 45, name: 'Top-Left Mountain' },
-    { x: 345, y: 0, w: 275, h: 15, name: 'Citadel Crest' },
-    { x: 620, y: 0, w: 340, h: 50, name: 'Top-Right Mountain' },
-
-    // --- Boundary Walls & Cliffs (All town roads and trails are 100% open) ---
-    { x: 0, y: 45, w: 18, h: 90, name: 'West Border North' },
-    { x: 0, y: 420, w: 18, h: 75, name: 'West Border South' },
-    { x: 0, y: 492, w: 438, h: 48, name: 'Bottom-Left Cliff Wall' },
-    { x: 535, y: 488, w: 425, h: 52, name: 'Bottom-Right Cliff Wall' },
-
-    // --- East River, Waterfall & Bridge Railings ---
-    { x: 925, y: 0, w: 35, h: 195, name: 'North River Waterfall' },
-    { x: 865, y: 250, w: 95, h: 240, name: 'Lily Pond & South River' },
-    { x: 825, y: 185, w: 100, h: 12, name: 'Bridge Top Railing' },
-    { x: 825, y: 245, w: 100, h: 12, name: 'Bridge Bottom Railing' },
-
-    // --- Building 1: Vivek's House (Top-Left) ---
-    { x: 130, y: 45, w: 165, h: 150, name: "Vivek's House" },
-
-    // --- Building 2: Kerala Kaapi & Dev Cafe (Far West Trail) ---
-    { x: 0, y: 135, w: 95, h: 72, name: 'Kaapi Roastery Cafe' },
-
-    // --- Building 3: Rajagiri Citadel (Top-Center) ---
-    { x: 375, y: 15, w: 210, h: 140, name: 'Citadel Main Hall' },
-    { x: 350, y: 155, w: 85, h: 30, name: 'Citadel Left Wall' },
-    { x: 525, y: 155, w: 85, h: 30, name: 'Citadel Right Wall' },
-
-    // --- Building 4: Projects Workshop Studio (Top-Right) ---
-    { x: 675, y: 60, w: 165, h: 135, name: 'Workshop Studio' },
-
-    // --- Building 5: AI & Cloud Observatory (Far East Cliff Across Bridge) ---
-    { x: 845, y: 40, w: 80, h: 155, name: 'AI Observatory Tower' },
-
-    // --- Building 6: AI Lab & Library (Bottom-Left) ---
-    { x: 95, y: 285, w: 230, h: 140, name: 'AI Lab Library' },
-
-    // --- Building 7: Tech Stack Cyber Arcade (Far Bottom-Left Meadow) ---
-    { x: 10, y: 320, w: 75, h: 75, name: 'Tech Cyber Arcade' },
-
-    // --- Building 8: Contact Center & Post Office (Bottom-Right) ---
-    { x: 655, y: 310, w: 235, h: 120, name: 'Contact Center' },
-
-    // --- Central Plaza Lampposts (Plaza & Compass Rose are wide open) ---
-    { x: 418, y: 232, w: 6, h: 6, name: 'Lamppost NW' },
-    { x: 563, y: 232, w: 6, h: 6, name: 'Lamppost NE' },
-    { x: 418, y: 356, w: 6, h: 6, name: 'Lamppost SW' },
-    { x: 563, y: 356, w: 6, h: 6, name: 'Lamppost SE' }
+    { x: 0, y: 0, w: 960, h: 38, name: 'Mountains & north fence' },
+    { x: 0, y: 38, w: 128, h: 72, name: 'West forest' },
+    { x: 0, y: 105, w: 96, h: 98, name: 'Kaapi Cafe' },
+    { x: 44, y: 195, w: 52, h: 19, name: 'Cafe tables' },
+    { x: 96, y: 110, w: 34, h: 92, name: 'Garden west of house' },
+    { x: 128, y: 38, w: 150, h: 158, name: "Vivek's House" },
+    { x: 214, y: 176, w: 64, h: 26, name: 'House flower box' },
+    { x: 278, y: 38, w: 22, h: 165, name: 'Firewood & posts' },
+    { x: 300, y: 38, w: 48, h: 58, name: 'Tree north of nook' },
+    { x: 316, y: 176, w: 14, h: 10, name: 'Nook lamppost' },
+    { x: 343, y: 38, w: 19, h: 165, name: 'Stone gate pillar' },
+    { x: 362, y: 0, w: 241, h: 118, name: 'Town Hall' },
+    { x: 362, y: 118, w: 75, h: 40, name: 'Town Hall west wing' },
+    { x: 525, y: 118, w: 78, h: 40, name: 'Town Hall east wing' },
+    { x: 350, y: 155, w: 87, h: 32, name: 'West planter' },
+    { x: 523, y: 153, w: 87, h: 34, name: 'East planter' },
+    { x: 603, y: 0, w: 42, h: 190, name: 'Trees east of Town Hall' },
+    { x: 643, y: 38, w: 200, h: 150, name: 'Projects Workshop' },
+    { x: 645, y: 170, w: 58, h: 26, name: 'Workshop wall' },
+    { x: 843, y: 15, w: 82, h: 172, name: 'Observatory' },
+    { x: 925, y: 0, w: 35, h: 197, name: 'Waterfall' },
+    { x: 790, y: 200, w: 40, h: 14, name: 'Bridge approach posts' },
+    { x: 830, y: 196, w: 130, h: 15, name: 'Bridge north rail' },
+    { x: 830, y: 245, w: 130, h: 13, name: 'Bridge south rail' },
+    { x: 827, y: 258, w: 133, h: 12, name: 'Rocks below bridge' },
+    { x: 867, y: 262, w: 93, h: 78, name: 'Lily pond' },
+    { x: 880, y: 337, w: 80, h: 140, name: 'East grove' },
+    { x: 0, y: 251, w: 87, h: 66, name: 'Trees above arcade' },
+    { x: 87, y: 252, w: 236, h: 168, name: 'AI Lab' },
+    { x: 185, y: 233, w: 75, h: 19, name: 'AI Lab gable' },
+    { x: 240, y: 420, w: 145, h: 20, name: 'Lab garden fence' },
+    { x: 10, y: 315, w: 77, h: 87, name: 'Skills Arcade' },
+    { x: 0, y: 317, w: 10, h: 160, name: 'West edge' },
+    { x: 0, y: 404, w: 34, h: 73, name: 'West rocks' },
+    { x: 90, y: 421, w: 52, h: 22, name: 'Bench' },
+    { x: 158, y: 462, w: 12, h: 9, name: 'Lab lamppost' },
+    { x: 262, y: 458, w: 112, h: 22, name: 'South fence & tree' },
+    { x: 0, y: 477, w: 447, h: 63, name: 'South cliff west' },
+    { x: 425, y: 458, w: 22, h: 82, name: 'Stair pillar west' },
+    { x: 507, y: 456, w: 24, h: 84, name: 'Stair pillar east' },
+    { x: 531, y: 472, w: 429, h: 68, name: 'South cliff east' },
+    { x: 345, y: 338, w: 22, h: 14, name: 'Tree trunk west plaza' },
+    { x: 327, y: 370, w: 78, h: 70, name: 'West garden' },
+    { x: 398, y: 262, w: 12, h: 9, name: 'Lamppost plaza NW' },
+    { x: 537, y: 262, w: 12, h: 9, name: 'Lamppost plaza NE' },
+    { x: 397, y: 364, w: 13, h: 9, name: 'Lamppost plaza SW' },
+    { x: 537, y: 364, w: 13, h: 9, name: 'Lamppost plaza SE' },
+    { x: 424, y: 232, w: 10, h: 8, name: 'Signpost' },
+    { x: 558, y: 340, w: 14, h: 82, name: 'Fence posts east plaza' },
+    { x: 588, y: 388, w: 22, h: 45, name: 'Mailbox' },
+    { x: 612, y: 398, w: 32, h: 32, name: 'Post sign & barrel' },
+    { x: 633, y: 262, w: 247, h: 163, name: 'Contact Center' },
+    { x: 655, y: 424, w: 16, h: 16, name: 'Crate' },
+    { x: 792, y: 423, w: 40, h: 16, name: 'Bulletin board' },
+    { x: 600, y: 285, w: 25, h: 20, name: 'Tree east plaza' },
+    { x: 270, y: 252, w: 18, h: 16, name: 'Roadside pine' }
   ];
 
   // --- New Town Feature State Models ---
   let showHitboxes = false;
   let wishingCoinsTossed = 0;
 
-  // Appu the Campus Dog Mascot
+  // Luka the Campus Dog Mascot
   const appu = {
     x: 370,
     y: 312,
@@ -322,7 +450,12 @@
     hopVz: 0,
     gravity: 0.65,
     petCount: 0,
-    bubble: null
+    bubble: null,
+    wagTimer: 0,
+    follow: false,   // befriended: trots after the player
+    walking: false,
+    stuck: 0,
+    lag: 0
   };
 
   // Fortunes for the River Bridge Wishing Well
@@ -339,8 +472,8 @@
 
   // Animated Koi Fish in Lily Pond
   const koiFish = [
-    { x: 910, y: 285, angle: 0, speed: 0.022, radiusX: 26, radiusY: 15, color: '#f97316', spotColor: '#ffffff' },
-    { x: 928, y: 310, angle: Math.PI, speed: 0.018, radiusX: 20, radiusY: 12, color: '#f8fafc', spotColor: '#dc2626' }
+    { cx: 905, cy: 300, rx: 22, ry: 13, angle: 0, speed: 0.012, finWag: 0, length: 12, color: '#f97316', x: 905, y: 300 },
+    { cx: 915, cy: 330, rx: 17, ry: 10, angle: Math.PI, speed: 0.016, finWag: 1, length: 10, color: '#f8fafc', x: 915, y: 330 }
   ];
 
   // Dynamic particle pools
@@ -357,6 +490,9 @@
     speed: 3.2,
     baseSpeed: 3.2,
     runSpeed: 5.0,
+    navSpeed: 3.8,   // walking a planned path (tap / click / tour)
+    vx: 0,           // eased velocity
+    vy: 0,
     caffeineTimer: 0,
     facing: 'down',
     moving: false,
@@ -391,37 +527,71 @@
   // Progress is a per-visitor convenience kept in localStorage (wrapped in try/catch:
   // private windows and blocked storage simply start fresh each visit).
   const Quests = (function () {
-    const STORAGE_KEY = 'pixel-town-quests-v1';
-    const XP = { building: 100, bulletin: 75, coffee: 50, resume: 150 };
+    const STORAGE_KEY = 'pixel-town-quests-v2';
+    const LEGACY_KEY = 'pixel-town-quests-v1';
+    const XP = { building: 100, chip: 20, bug: 15, crew: 30, bulletin: 75, coffee: 50, friend: 50, resume: 150 };
+    const BUG_GOAL = 5;
     const XP_PER_LEVEL = 250;
-    const LABELS = { bulletin: 'Read the notice board', coffee: 'Drink a coffee', resume: 'Open the resume' };
-    let state = { buildings: [], bulletin: false, coffee: false, resume: false };
+    const FLAGS = ['bulletin', 'coffee', 'friend', 'resume'];
+    const LABELS = {
+      bulletin: 'Read the notice board', coffee: 'Drink a coffee',
+      friend: 'Befriend Luka', resume: 'Open the resume'
+    };
+    let state = {
+      buildings: [], chips: [], crew: [], bugs: 0,
+      bulletin: false, coffee: false, friend: false, resume: false, finale: false
+    };
+    // Set by the game once it knows how many chips and crew members exist
+    const totals = { chips: 0, crew: 0 };
+    let onAllDone = null;
+
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) || 'null');
       if (saved && Array.isArray(saved.buildings)) state = { ...state, ...saved };
+      ['buildings', 'chips', 'crew'].forEach(k => { if (!Array.isArray(state[k])) state[k] = []; });
+      state.bugs = Number(state.bugs) || 0;
     } catch (_) { /* storage unavailable */ }
 
     const save = () => {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) { /* ignore */ }
     };
-    const xp = () => state.buildings.length * XP.building
-      + (state.bulletin ? XP.bulletin : 0) + (state.coffee ? XP.coffee : 0) + (state.resume ? XP.resume : 0);
+    const visitedCount = () => state.buildings.filter(id => BUILDINGS.some(b => b.id === id)).length;
+    const chipCount = () => Math.min(state.chips.length, totals.chips || state.chips.length);
+    const crewCount = () => Math.min(state.crew.length, totals.crew || state.crew.length);
+    const bugCount = () => Math.min(state.bugs, BUG_GOAL);
+    const xp = () => state.buildings.length * XP.building + chipCount() * XP.chip + bugCount() * XP.bug
+      + crewCount() * XP.crew + FLAGS.reduce((sum, f) => sum + (state[f] ? XP[f] : 0), 0);
     const level = () => 1 + Math.floor(xp() / XP_PER_LEVEL);
 
+    function doneMap() {
+      return {
+        explore: visitedCount() >= BUILDINGS.length,
+        chips: totals.chips > 0 && chipCount() >= totals.chips,
+        bugs: bugCount() >= BUG_GOAL,
+        crew: totals.crew > 0 && crewCount() >= totals.crew,
+        bulletin: state.bulletin, coffee: state.coffee, friend: state.friend, resume: state.resume
+      };
+    }
+    const allDone = () => Object.values(doneMap()).every(Boolean);
+
     function render() {
-      const total = BUILDINGS.length;
-      const visited = state.buildings.filter(id => BUILDINGS.some(b => b.id === id)).length;
       const points = xp();
       const lvl = level();
       const intoLevel = points % XP_PER_LEVEL;
       const set = (sel, text) => { const el = document.querySelector(sel); if (el) el.textContent = text; };
       set('#gx-level', `LVL ${lvl}`);
       set('#brand-level-val', String(lvl));
+      set('#m-exp-val', `LVL ${lvl} · ${points} XP`);
       set('#gx-xp-text', `${points} XP · ${XP_PER_LEVEL - intoLevel} to LVL ${lvl + 1}`);
-      set('#gx-quest-explore-progress', `${visited}/${total}`);
+      set('#gx-quest-explore-progress', `${visitedCount()}/${BUILDINGS.length}`);
+      set('#gx-quest-chips-progress', `${chipCount()}/${totals.chips}`);
+      set('#gx-quest-bugs-progress', `${bugCount()}/${BUG_GOAL}`);
+      set('#gx-quest-crew-progress', `${crewCount()}/${totals.crew}`);
+      set('#gx-hud-chips', `${chipCount()}/${totals.chips}`);
+      set('#gx-hud-bugs', `${bugCount()}/${BUG_GOAL}`);
       const fill = document.querySelector('#gx-xp-fill');
       if (fill) fill.style.width = `${(intoLevel / XP_PER_LEVEL) * 100}%`;
-      const done = { explore: visited >= total, bulletin: state.bulletin, coffee: state.coffee, resume: state.resume };
+      const done = doneMap();
       document.querySelectorAll('.gx-quest').forEach(li => li.classList.toggle('done', !!done[li.dataset.quest]));
       // Visited buildings get a tick; the next unvisited one is highlighted
       const next = BUILDINGS.find(b => !state.buildings.includes(b.id));
@@ -431,6 +601,7 @@
       });
     }
 
+    // Re-render, celebrate a level-up, and fire the finale once everything is done
     function award(before) {
       const after = level();
       render();
@@ -443,20 +614,48 @@
           createPixelSparkBurst(r.left + r.width / 2, r.top, 14, '#ffd700');
         }
       }
+      if (!state.finale && allDone()) {
+        state.finale = true;
+        save();
+        if (onAllDone) onAllDone();
+      }
+    }
+
+    // Adds an id to one of the list-based quests; returns true when it was new
+    function addTo(list, id) {
+      if (state[list].includes(id)) return false;
+      const before = level();
+      state[list].push(id);
+      save();
+      award(before);
+      return true;
     }
 
     return {
       render,
+      XP,
+      BUG_GOAL,
+      setTotals(t) { Object.assign(totals, t); render(); },
+      set onAllDone(fn) { onAllDone = fn; },
       // Buildings visited earlier this visit or on a previous one
       restoreInto(set) { state.buildings.forEach(id => set.add(id)); },
       nextBuilding() { return BUILDINGS.find(b => !state.buildings.includes(b.id)) || null; },
-      buildingVisited(id) {
-        if (state.buildings.includes(id)) return;
+      buildingVisited(id) { return addTo('buildings', id); },
+      hasChip(id) { return state.chips.includes(id); },
+      chipCollected(id) { return addTo('chips', id); },
+      hasMet(id) { return state.crew.includes(id); },
+      crewMet(id) { return addTo('crew', id); },
+      bugsDone() { return state.bugs >= BUG_GOAL; },
+      // Returns true while the stomp still counts toward the quest (and earns XP)
+      bugFixed() {
+        const counted = state.bugs < BUG_GOAL;
         const before = level();
-        state.buildings.push(id);
+        state.bugs++;
         save();
-        award(before);
+        if (counted) award(before);
+        return counted;
       },
+      isDone(flag) { return !!state[flag]; },
       complete(id) {
         if (state[id]) return;
         const before = level();
@@ -464,11 +663,24 @@
         save();
         showToast(`✅ Quest complete: ${LABELS[id]} (+${XP[id]} XP)`);
         award(before);
+      },
+      // One-line objective for the in-game status bar
+      nextHint() {
+        const done = doneMap();
+        const next = BUILDINGS.find(b => !state.buildings.includes(b.id));
+        if (next) return `Next: visit ${next.shortName}`;
+        if (!done.chips) return `Find the skill chips: ${totals.chips - chipCount()} left`;
+        if (!done.crew) return `Talk to the town crew: ${totals.crew - crewCount()} left`;
+        if (!done.bugs) return `Jump on bugs to fix them: ${BUG_GOAL - bugCount()} to go`;
+        if (!done.bulletin) return 'Read the notice board by the Contact Center';
+        if (!done.friend) return 'Pet Luka the dog';
+        if (!done.coffee) return 'Drink a coffee (C)';
+        if (!done.resume) return 'Open the resume at the Career Observatory';
+        return 'All quests complete. Thanks for exploring!';
       }
     };
   })();
   let currentOpenBuilding = null;
-  let targetDestination = null;
 
   // Particle systems
   const particles = [];
@@ -1034,7 +1246,7 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         switchRoute('town');
-        canvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        bringGameIntoView();
       }
     });
   }
@@ -1102,7 +1314,19 @@
     }
   }
 
-  // Left Wing: Town Landmarks Fast-Travel Buttons
+  // Scroll so the whole game sits below the sticky header (only if it doesn't already)
+  function bringGameIntoView() {
+    const wrap = document.querySelector('#console-wrapper');
+    if (!wrap) return;
+    const header = document.querySelector('#site-topbar');
+    const top = header ? header.getBoundingClientRect().bottom : 0;
+    const r = wrap.getBoundingClientRect();
+    if (r.top < top - 1 || r.top > window.innerHeight * 0.5) {
+      window.scrollTo({ top: window.scrollY + r.top - top, behavior: 'smooth' });
+    }
+  }
+
+  // Town map list: walk there (and show the game, which sits above the list on phones)
   document.querySelectorAll('.landmark-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       initAudio();
@@ -1110,6 +1334,7 @@
       const target = btn.dataset.travel || btn.dataset.target;
       if (target) {
         walkToBuilding(target);
+        bringGameIntoView();
       }
     });
   });
@@ -1196,7 +1421,7 @@
     { title: 'Golden Hour Sunset', desc: 'Warm amber dusk over town', cat: 'Atmosphere', icon: '🌅', action: () => setAtmosphere('sunset') },
     { title: 'Starry Cyber Night', desc: 'Lantern glow & nocturnal street lamps', cat: 'Atmosphere', icon: '🌙', action: () => setAtmosphere('night') },
     { title: 'Toss River Wishing Coin', desc: 'Flip a coin into East River for fortunes & lore', cat: 'Action', icon: '🪙', action: () => { switchRoute('town'); tossWishingCoin(); } },
-    { title: 'Pet Appu Campus Mascot', desc: 'Visit and pet the friendly West Meadow puppy', cat: 'Action', icon: '🐾', action: () => { switchRoute('town'); petAppu(); } },
+    { title: 'Pet Luka Campus Mascot', desc: 'Visit and pet the friendly West Meadow puppy', cat: 'Action', icon: '🐾', action: () => { switchRoute('town'); petAppu(); } },
     { title: 'Read Campus Bulletin', desc: 'Notices, hackathons, blood drive & recruit clearance', cat: 'Navigation', icon: '📜', action: () => openCampusBulletin() },
     { title: 'AI & Cloud Observatory', desc: 'Walk to research tower across East River', cat: 'Navigation', icon: '🔭', action: () => walkToBuilding('observatory') },
     { title: 'Kerala Kaapi & Dev Cafe', desc: 'Visit the coffee roastery & patio on West Trail', cat: 'Navigation', icon: '☕', action: () => walkToBuilding('kaapi') },
@@ -1411,6 +1636,34 @@
   }, { passive: true });
   updateProNavSpy();
 
+  const mProNav = document.querySelector('#m-pro-nav');
+  if (mProNav) {
+    const headerLinks = [...document.querySelectorAll('#pro-nav-links .pro-nav-item')];
+    headerLinks.forEach(src => {
+      const a = document.createElement('a');
+      a.className = 'm-pro-link';
+      a.href = src.getAttribute('href');
+      a.textContent = src.textContent;
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        sfxClick();
+        closeMobileNav();
+        const target = document.getElementById(src.dataset.section);
+        if (currentRoute !== 'pro') switchRoute('pro');
+        if (!target) return;
+        spyLockedTo = src;
+        proNavLinks.forEach(l => l.classList.toggle('active', l === src));
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (window.SwarmIntro) window.SwarmIntro.highlight(target, document.querySelector('#btn-mobile-nav'));
+      });
+      mProNav.appendChild(a);
+    });
+  }
+  const mProPdf = document.querySelector('#m-pro-pdf');
+  if (mProPdf) mProPdf.addEventListener('click', () => { closeMobileNav(); setTimeout(() => window.print(), 250); });
+  const mProPlay = document.querySelector('#m-pro-play');
+  if (mProPlay) mProPlay.addEventListener('click', e => { e.preventDefault(); sfxClick(); switchRoute('town'); });
+
   const printResumeBtn = document.querySelector('#btn-print-resume');
   if (printResumeBtn) printResumeBtn.addEventListener('click', () => window.print());
 
@@ -1466,7 +1719,7 @@
     player.actionState = 'wave';
     player.actionTimer = 65;
     player.actionMaxTimer = 65;
-    targetDestination = null;
+    cancelWalk();
     sfxWave();
     setPlayerBubble("👋 Hey, I'm Vivek!", '👋', 95);
     spawnActionSparkles(player.x, player.y - player.h, '#ffd700', 'star');
@@ -1478,7 +1731,7 @@
     player.actionTimer = 80;
     player.actionMaxTimer = 80;
     player.caffeineTimer = 380;
-    targetDestination = null;
+    cancelWalk();
     sfxCoffee();
     Quests.complete('coffee');
     setPlayerBubble('☕ Kerala Kaapi! (+35% Speed)', '☕', 90);
@@ -1490,7 +1743,7 @@
     player.actionState = 'code';
     player.actionTimer = 100;
     player.actionMaxTimer = 100;
-    targetDestination = null;
+    cancelWalk();
     sfxKeyboard();
     setPlayerBubble('💻 Coding digital experiences...', '💻', 100);
     spawnActionSparkles(player.x, player.y - 18, '#38bdf8', 'code');
@@ -1503,7 +1756,7 @@
     player.actionMaxTimer = 140;
     player.danceAngle = 0;
     player.danceStep = 0;
-    targetDestination = null;
+    cancelWalk();
     sfxDance();
     setPlayerBubble('🎵 SPLENDORE Fest Groove! 🕺', '🎵', 140);
     spawnActionSparkles(player.x, player.y - 25, '#ff70a6', 'note');
@@ -1654,7 +1907,7 @@
     if (player.y > 440 && player.x >= 420 && player.x <= 540) return 'South Town Gateway Stairs 🏛️';
     if (player.x < 110 && player.y >= 120 && player.y <= 240) return 'West Trail · Kerala Kaapi Cafe ☕';
     if (player.x < 110 && player.y > 280) return 'West Meadow · Tech Cyber Arcade 🕹️';
-    if (Math.hypot(player.x - appu.x, player.y - appu.y) < 55) return 'West Meadow · Appu the Dog 🐕';
+    if (Math.hypot(player.x - appu.x, player.y - appu.y) < 55) return 'West Meadow · Luka the Dog 🐕';
     if (player.y > 380) return 'South Village Walk';
     return 'Town Square';
   }
@@ -1722,18 +1975,22 @@
     spawnActionSparkles(player.x, player.y - 20, '#ffd700', 'star');
   }
 
-  // --- Appu Mascot Interaction ---
+  // --- Luka Mascot Interaction ---
   function petAppu() {
     initAudio();
     sfxBark();
+    if (!appu.follow) {
+      appu.follow = true;
+      Quests.complete('friend');
+      setTimeout(() => showToast('🐾 Luka will follow you around town now.'), 600);
+    }
     appu.petCount++;
     appu.state = 'happy';
     appu.hopVz = 3.6;
     appu.facing = player.x > appu.x ? 'right' : 'left';
 
     appu.bubble = { text: 'Woof! 🐾 ❤️', icon: '🐕', timer: 0, maxTimer: 90 };
-    setPlayerBubble("Hey Appu! Good boy! Rajagiri's coding mascot! 🐾", '❤️', 110);
-    showToast(`🐾 You petted Appu! Happy puppy energy! (${appu.petCount} Pets)`);
+    setPlayerBubble('Good boy, Luka! 🐾', '❤️', 90);
 
     for (let i = 0; i < 6; i++) {
       actionParticles.push({
@@ -1758,7 +2015,7 @@
     player.actionTimer = 80;
     player.actionMaxTimer = 80;
     player.caffeineTimer = 380;
-    targetDestination = null;
+    cancelWalk();
     setPlayerBubble('☕ Kerala Masala Chai & Parippu Vada! (+35% Speed)', '☕', 100);
     showToast('☕ Fresh Masala Chai from the Kerala Chai Kada! Speed boosted!');
     spawnActionSparkles(player.x, player.y - 20, '#ea580c', 'star');
@@ -1847,8 +2104,9 @@
     if (copyEmailBtn) {
       copyEmailBtn.addEventListener('click', e => {
         e.preventDefault();
-        navigator.clipboard.writeText('vivek.dev.contact@gmail.com').catch(() => {});
-        showToast('📋 Email copied to clipboard: vivek.dev.contact@gmail.com');
+        const addr = (window.SITE_CONTENT && window.SITE_CONTENT.profile && window.SITE_CONTENT.profile.email) || '';
+        navigator.clipboard.writeText(addr).catch(() => {});
+        showToast(`📋 Email copied: ${addr}`);
         sfxClick();
       });
     }
@@ -1888,38 +2146,14 @@
   }
 
   function toggleInteract() {
-    if (isBulletinOpen()) {
-      closeCampusBulletin();
-      return;
-    }
-    if (dialog.classList.contains('open')) {
-      closeDialog();
-      return;
-    }
-
-    // 1. Enter Building Interior (checked first for instant responsiveness)
-    const nearby = getNearbyBuilding();
-    if (nearby) {
-      openBuilding(nearby.id);
-      return;
-    }
-
-    // 2. East River Bridge Wishing Well
-    if (player.x >= 840 && player.x <= 960 && player.y >= 198 && player.y <= 245) {
-      tossWishingCoin();
-      return;
-    }
-
-    // 3. Pet Appu the Puppy
-    if (Math.hypot(player.x - appu.x, player.y - appu.y) < 52) {
-      petAppu();
-      return;
-    }
-
-    // 4. Read Campus Bulletin Noticeboard
-    if (Math.hypot(player.x - 835, player.y - 445) < 55) {
-      openCampusBulletin();
-      return;
+    if (finaleOpen()) { closeFinale(); return; }
+    if (Dialogue.isOpen()) { Dialogue.advance(); return; }
+    if (isBulletinOpen()) { closeCampusBulletin(); return; }
+    if (dialog.classList.contains('open')) { closeDialog(); return; }
+    const it = activeInteractable || findActiveInteractable();
+    if (it) {
+      cancelWalk();
+      it.use();
     }
   }
 
@@ -2008,99 +2242,30 @@
   if (fullscreenBtn) {
     fullscreenBtn.addEventListener('click', toggleFullscreen);
   }
-  document.addEventListener('fullscreenchange', updateFullscreenUI);
+  document.addEventListener('fullscreenchange', () => { updateFullscreenUI(); requestAnimationFrame(resizeCanvas); });
   document.addEventListener('webkitfullscreenchange', updateFullscreenUI);
 
-  // --- Fast Travel & Auto-Walk with Crossroads Waypoints ---
-  let targetWaypoints = [];
-
-  function getBuildingRouteWaypoints(startX, startY, b) {
-    const waypoints = [];
-
-    // South district: Arcade, AI Lab, Contact Center
-    if (b.id === 'arcade') {
-      if (startY < 380) waypoints.push({ x: 480, y: 450 });
-      waypoints.push({ x: 52, y: 450 });
-      waypoints.push({ x: b.stand.x, y: b.stand.y });
-    } else if (b.id === 'skills') {
-      if (startY < 380) waypoints.push({ x: 480, y: 450 });
-      waypoints.push({ x: b.stand.x, y: b.stand.y });
-    } else if (b.id === 'contact') {
-      if (startY < 380) waypoints.push({ x: 480, y: 450 });
-      waypoints.push({ x: b.stand.x, y: b.stand.y });
-    } else if (b.id === 'kaapi') {
-      if (startX > 360) waypoints.push({ x: 380, y: 235 });
-      waypoints.push({ x: b.stand.x, y: b.stand.y });
-    } else if (b.id === 'about') {
-      if (startX > 360) waypoints.push({ x: 380, y: 235 });
-      waypoints.push({ x: b.stand.x, y: b.stand.y });
-    } else if (b.id === 'observatory') {
-      if (startX < 550) waypoints.push({ x: 600, y: 235 });
-      waypoints.push({ x: 835, y: 222 });
-      waypoints.push({ x: b.stand.x, y: b.stand.y });
-    } else if (b.id === 'projects') {
-      if (startX < 550) waypoints.push({ x: 600, y: 235 });
-      waypoints.push({ x: b.stand.x, y: b.stand.y });
-    } else {
-      waypoints.push({ x: b.stand.x, y: b.stand.y });
-    }
-
-    return waypoints;
-  }
-
-  function advanceNextWaypoint(building) {
-    if (!targetWaypoints || targetWaypoints.length === 0) {
-      targetDestination = null;
-      if (building) openBuilding(building.id);
-      return;
-    }
-    const nextPt = targetWaypoints.shift();
-    targetDestination = {
-      x: nextPt.x,
-      y: nextPt.y,
-      onArrival: () => {
-        if (targetWaypoints.length > 0) {
-          advanceNextWaypoint(building);
-        } else if (building) {
-          openBuilding(building.id);
-        }
-      }
-    };
-  }
-
+  // --- Walk to a building (directory, tour, search palette, map clicks) ---
   function walkToBuilding(buildingId) {
     initAudio();
     const b = BUILDINGS.find(item => item.id === buildingId);
     if (!b) return;
-
-    // If currently on another page, switch to town first!
-    if (currentRoute !== 'town') {
-      switchRoute('town');
-    }
-
+    if (currentRoute !== 'town') switchRoute('town');
+    closeDialog();
+    Dialogue.close();
     sfxClick();
-    targetWaypoints = getBuildingRouteWaypoints(player.x, player.y, b);
-    const firstPoint = targetWaypoints.shift();
-    targetDestination = {
-      x: firstPoint.x,
-      y: firstPoint.y,
-      onArrival: () => {
-        if (targetWaypoints.length > 0) {
-          advanceNextWaypoint(b);
-        } else {
-          openBuilding(b.id);
-        }
-      }
-    };
-    spawnDestinationRipple(b.stand.x, b.stand.y);
-    showToast(`Walking to ${b.shortName}...`);
+    if (Math.hypot(player.x - b.stand.x, player.y - b.stand.y) < 30) {
+      openBuilding(b.id);
+      return;
+    }
+    if (walkTo(b.stand.x, b.stand.y, () => openBuilding(b.id))) showToast(`Walking to ${b.shortName}…`);
   }
 
   // Fast Travel buttons on Console Frame
   document.querySelectorAll('.travel-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       walkToBuilding(btn.dataset.travel);
-      canvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      bringGameIntoView();
     });
   });
 
@@ -2114,8 +2279,12 @@
     ctx.restore();
   }
 
-  function drawPixelPill(text, x, y, bg = '#1d3337', textCol = '#fff5cf', borderCol = '#f5c542') {
+  function drawPixelPill(text, x, y, bg = '#1d3337', textCol = '#fff5cf', borderCol = '#f5c542', scale = labelScale()) {
     ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    x = 0;
+    y = 0;
     ctx.font = '8px "Press Start 2P", monospace';
     const paddingX = 8;
     const paddingY = 5;
@@ -2139,6 +2308,1066 @@
     ctx.fillText(text, x, y + 1);
     ctx.restore();
   }
+
+  // ==========================================================================
+  // GAME ENGINE: camera, navigation, interactions, crew, skill chips, bugs
+  // ==========================================================================
+
+  // --- Camera & canvas resolution -------------------------------------------
+  // The town opens on the whole map; the first move swoops in to a follow camera.
+  const cam = { x: 0, y: 0, zoom: 1, overview: true, auto: true, shake: 0 };
+  let renderScale = 1;   // backing-store pixels per world unit at zoom 1
+  let cssWidth = 960;    // displayed canvas width in CSS pixels
+  let uiK = 1;           // enlarges in-world labels on small screens
+  // Screen space is always 960 units wide; its height follows the canvas shape
+  // (540 for 16:9, taller on portrait phones)
+  const SCREEN_W = WORLD_W;
+  let screenH = WORLD_H;
+  // Zoom at which the view is exactly as tall as the town (portrait screens)
+  const fillZoom = () => Math.max(1, screenH / WORLD_H);
+
+  function followZoom() {
+    if (screenH > WORLD_H * 1.05) return fillZoom() * 1.3; // portrait: tall slice of town
+    if (cssWidth < 520) return 2.0;
+    if (cssWidth < 820) return 1.7;
+    return 1.4;
+  }
+
+  // Match the canvas backing store to its on-screen size (sharp on any display)
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width) return; // town view is hidden
+    cssWidth = rect.width;
+    // Sharp, but within a pixel budget: big screens / fullscreen don't need 6M+ pixels
+    // per frame (the art itself is ~1376 px wide), so the resolution is capped by area
+    const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const budget = isFS ? 2.2e6 : 2.6e6;
+    let dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    dpr = Math.min(dpr, Math.sqrt(budget / Math.max(1, rect.width * rect.height)));
+    const w = Math.max(480, Math.round(rect.width * dpr));
+    const h = Math.round(w * (rect.height / rect.width));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    renderScale = canvas.width / SCREEN_W;
+    screenH = SCREEN_W * canvas.height / canvas.width;
+    if (screenH > WORLD_H * 1.05 && cam.auto) {
+      cam.auto = false;
+      cam.overview = false;
+      cam.zoom = followZoom();
+      const mb = document.querySelector('#gx-map-btn');
+      if (mb) mb.classList.remove('active');
+    }
+    uiK = clamp(900 / cssWidth, 1, 2.6);
+    // Art is drawn at non-integer scales (sprites shrink, the map stretches), where
+    // nearest-neighbour turns into uneven, jagged pixels; high-quality smoothing keeps
+    // it clean. Pixel UI (pills, shapes) is drawn with rects and stays crisp.
+    ctx.imageSmoothingEnabled = true;
+    // 'high' resampling is costly at large sizes; 'medium' looks the same once the canvas is big
+    ctx.imageSmoothingQuality = canvas.width * canvas.height > 1.6e6 ? 'medium' : 'high';
+  }
+  if ('ResizeObserver' in window) new ResizeObserver(resizeCanvas).observe(canvas);
+  window.addEventListener('resize', resizeCanvas);
+
+  const viewW = () => SCREEN_W / cam.zoom;
+  const viewH = () => screenH / cam.zoom;
+  // Keep the view inside the town; a view bigger than the town is centred on it
+  const camRange = (pos, view, world) => (view >= world ? (world - view) / 2 : clamp(pos, 0, world - view));
+
+  // Follow-camera zoom by context: close up near doors and people, wider while
+  // travelling between them (and a little wider when running or auto-walking far)
+  const ZOOM_NEAR_DIST = 42;   // at or inside this distance: full close-up
+  const ZOOM_FAR_DIST = 105;   // beyond this: fully zoomed out
+  let smoothCloseness = 1;
+
+  function contextZoom() {
+    const zIn = followZoom();
+    const zOut = screenH > WORLD_H * 1.05 ? fillZoom() : Math.max(1.12, zIn * 0.68);
+    let nearest = Infinity;
+    for (const it of interactables) {
+      if (it.kind === 'zone' || it.kind === 'object' && it.id === 'signpost') continue;
+      if (it.id === 'appu' && appu.follow) continue; // a companion at your heels is not a destination
+      const p = it.pos();
+      nearest = Math.min(nearest, Math.hypot(player.x - p.x, player.y - p.y));
+    }
+    let closeness = clamp((ZOOM_FAR_DIST - nearest) / (ZOOM_FAR_DIST - ZOOM_NEAR_DIST), 0, 1);
+    if (player.running && player.moving) closeness *= 0.6;
+    if (navPath.length) {
+      const goal = navGoal || navPath[navPath.length - 1];
+      const left = Math.hypot(goal.x - player.x, goal.y - player.y);
+      if (left > ZOOM_FAR_DIST * 1.5) closeness *= 0.5; // long trip: show more of the route
+    }
+    if (Dialogue.isOpen()) closeness = 1;
+    // Smooth the closeness itself so passing a lamp-post's worth of distance can't jitter
+    smoothCloseness += (closeness - smoothCloseness) * 0.05;
+    const k = smoothCloseness * smoothCloseness * (3 - 2 * smoothCloseness); // ease in/out
+    return zOut + (zIn - zOut) * k;
+  }
+
+  function updateCamera() {
+    const targetZoom = cam.overview ? 1 : contextZoom();
+    cam.zoom += (targetZoom - cam.zoom) * (cam.overview ? 0.09 : 0.06);
+    if (Math.abs(targetZoom - cam.zoom) < 0.003) cam.zoom = targetZoom;
+    // Look slightly ahead of the walking direction
+    const tx = camRange(player.x + player.vx * 9 - viewW() / 2, viewW(), WORLD_W);
+    const ty = camRange(player.y - 22 + player.vy * 7 - viewH() / 2, viewH(), WORLD_H);
+    cam.x += (tx - cam.x) * 0.12;
+    cam.y += (ty - cam.y) * 0.12;
+    cam.x = camRange(cam.x, viewW(), WORLD_W);
+    cam.y = camRange(cam.y, viewH(), WORLD_H);
+    if (cam.shake > 0) cam.shake = Math.max(0, cam.shake - 0.5);
+  }
+
+  const mapBtn = document.querySelector('#gx-map-btn');
+
+  function setOverview(on) {
+    cam.overview = on;
+    if (mapBtn) mapBtn.classList.toggle('active', on);
+  }
+
+  function toggleOverview() {
+    cam.auto = false;
+    sfxClick();
+    setOverview(!cam.overview);
+  }
+
+  // Leave the opening whole-town view as soon as the visitor starts moving
+  function engageFollow() {
+    if (!cam.auto) return;
+    cam.auto = false;
+    setOverview(false);
+  }
+
+  // Pointer position -> world coordinates (through the camera)
+  function screenToWorld(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = ((clientX - rect.left) / rect.width) * SCREEN_W;
+    const sy = ((clientY - rect.top) / rect.height) * screenH;
+    return { x: cam.x + sx / cam.zoom, y: cam.y + sy / cam.zoom };
+  }
+
+  // World -> screen position in screen units (960 wide)
+  const worldToScreen = (x, y) => ({ x: (x - cam.x) * cam.zoom, y: (y - cam.y) * cam.zoom });
+
+  // In-world labels keep a readable on-screen size at any zoom
+  const labelScale = () => Math.min((uiK * 1.1) / cam.zoom, 1.7);
+
+  // --- Navigation grid & A* pathfinding --------------------------------------
+  const NAV_CELL = 8;
+  const NAV_COLS = WORLD_W / NAV_CELL;
+  const NAV_ROWS = Math.ceil(WORLD_H / NAV_CELL);
+  let navGrid = null;
+
+  const navCell = (x, y) => ({
+    c: clamp(Math.floor(x / NAV_CELL), 0, NAV_COLS - 1),
+    r: clamp(Math.floor(y / NAV_CELL), 0, NAV_ROWS - 1)
+  });
+  const navFree = (c, r) => c >= 0 && r >= 0 && c < NAV_COLS && r < NAV_ROWS && navGrid[r * NAV_COLS + c] === 1;
+  const cellCenter = (c, r) => ({ x: (c + 0.5) * NAV_CELL, y: (r + 0.5) * NAV_CELL });
+
+  function buildNavGrid() {
+    navGrid = new Uint8Array(NAV_COLS * NAV_ROWS);
+    for (let r = 0; r < NAV_ROWS; r++) {
+      for (let c = 0; c < NAV_COLS; c++) {
+        const { x, y } = cellCenter(c, r);
+        // Walkable only with a little clearance, so paths don't scrape corners
+        const free = !checkCollision(x, y) && !checkCollision(x - 4, y) && !checkCollision(x + 4, y)
+          && !checkCollision(x, y - 4) && !checkCollision(x, y + 4);
+        navGrid[r * NAV_COLS + c] = free ? 1 : 0;
+      }
+    }
+    // Keep only the area connected to the town square, so every free cell is reachable
+    const start = navCell(480, 345);
+    const reach = new Uint8Array(navGrid.length);
+    const stack = [start.r * NAV_COLS + start.c];
+    reach[stack[0]] = 1;
+    while (stack.length) {
+      const i = stack.pop();
+      const c = i % NAV_COLS, r = (i - c) / NAV_COLS;
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nc = c + dc, nr = r + dr;
+        if (!navFree(nc, nr)) continue;
+        const ni = nr * NAV_COLS + nc;
+        if (!reach[ni]) { reach[ni] = 1; stack.push(ni); }
+      }
+    }
+    for (let i = 0; i < navGrid.length; i++) navGrid[i] = navGrid[i] && reach[i] ? 1 : 0;
+  }
+
+  function nearestFreeCell(x, y, maxRing = 16) {
+    const { c, r } = navCell(x, y);
+    if (navFree(c, r)) return { c, r };
+    for (let ring = 1; ring <= maxRing; ring++) {
+      let best = null, bestD = Infinity;
+      for (let dr = -ring; dr <= ring; dr++) {
+        for (let dc = -ring; dc <= ring; dc++) {
+          if (Math.max(Math.abs(dc), Math.abs(dr)) !== ring || !navFree(c + dc, r + dr)) continue;
+          const p = cellCenter(c + dc, r + dr);
+          const d = Math.hypot(p.x - x, p.y - y);
+          if (d < bestD) { bestD = d; best = { c: c + dc, r: r + dr }; }
+        }
+      }
+      if (best) return best;
+    }
+    return null;
+  }
+
+  // Nearest standable point to a wished-for spot (used to place crew, chips, bugs)
+  function snapToFree(p) {
+    const cell = nearestFreeCell(p.x, p.y);
+    return cell ? cellCenter(cell.c, cell.r) : { x: p.x, y: p.y };
+  }
+
+  function navLineFree(ax, ay, bx, by) {
+    const steps = Math.ceil(Math.hypot(bx - ax, by - ay) / 4);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const { c, r } = navCell(ax + (bx - ax) * t, ay + (by - ay) * t);
+      if (!navFree(c, r)) return false;
+    }
+    return true;
+  }
+
+  // A* over the grid (8 directions, no corner cutting), then straightened
+  function findPath(sx, sy, tx, ty) {
+    const start = nearestFreeCell(sx, sy, 6);
+    const goal = nearestFreeCell(tx, ty);
+    if (!start || !goal) return null;
+    const N = NAV_COLS * NAV_ROWS;
+    const sIdx = start.r * NAV_COLS + start.c;
+    const gIdx = goal.r * NAV_COLS + goal.c;
+    const cost = new Float32Array(N).fill(Infinity);
+    const came = new Int32Array(N).fill(-1);
+    const closed = new Uint8Array(N);
+    const heap = [];
+    const push = (f, i) => {
+      heap.push([f, i]);
+      let k = heap.length - 1;
+      while (k > 0) {
+        const p = (k - 1) >> 1;
+        if (heap[p][0] <= heap[k][0]) break;
+        [heap[p], heap[k]] = [heap[k], heap[p]];
+        k = p;
+      }
+    };
+    const pop = () => {
+      const top = heap[0];
+      const last = heap.pop();
+      if (heap.length) {
+        heap[0] = last;
+        let k = 0;
+        for (;;) {
+          const l = 2 * k + 1, r = l + 1;
+          let m = k;
+          if (l < heap.length && heap[l][0] < heap[m][0]) m = l;
+          if (r < heap.length && heap[r][0] < heap[m][0]) m = r;
+          if (m === k) break;
+          [heap[m], heap[k]] = [heap[k], heap[m]];
+          k = m;
+        }
+      }
+      return top;
+    };
+    const estimate = i => {
+      const dc = Math.abs((i % NAV_COLS) - goal.c);
+      const dr = Math.abs(Math.floor(i / NAV_COLS) - goal.r);
+      return dc + dr + (Math.SQRT2 - 2) * Math.min(dc, dr);
+    };
+
+    cost[sIdx] = 0;
+    push(estimate(sIdx), sIdx);
+    while (heap.length) {
+      const cur = pop()[1];
+      if (closed[cur]) continue;
+      if (cur === gIdx) break;
+      closed[cur] = 1;
+      const cc = cur % NAV_COLS, cr = (cur - cc) / NAV_COLS;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (!dc && !dr) continue;
+          const nc = cc + dc, nr = cr + dr;
+          if (!navFree(nc, nr)) continue;
+          if (dc && dr && (!navFree(cc + dc, cr) || !navFree(cc, cr + dr))) continue;
+          const ni = nr * NAV_COLS + nc;
+          if (closed[ni]) continue;
+          const g = cost[cur] + (dc && dr ? Math.SQRT2 : 1);
+          if (g < cost[ni]) {
+            cost[ni] = g;
+            came[ni] = cur;
+            push(g + estimate(ni), ni);
+          }
+        }
+      }
+    }
+    if (gIdx !== sIdx && came[gIdx] === -1) return null;
+
+    const pts = [];
+    for (let i = gIdx; i !== -1; i = came[i]) pts.push(cellCenter(i % NAV_COLS, Math.floor(i / NAV_COLS)));
+    pts.reverse();
+
+    // String-pull: skip every waypoint a straight line can reach
+    const out = [];
+    let anchor = { x: sx, y: sy };
+    let i = 0;
+    while (i < pts.length) {
+      let j = pts.length - 1;
+      while (j > i && !navLineFree(anchor.x, anchor.y, pts[j].x, pts[j].y)) j--;
+      out.push(pts[j]);
+      anchor = pts[j];
+      i = j + 1;
+    }
+    // Finish on the exact spot when it is standable itself
+    if (!checkCollision(tx, ty) && Math.hypot(tx - anchor.x, ty - anchor.y) < NAV_CELL * 1.5) {
+      out.push({ x: tx, y: ty });
+    }
+    return out;
+  }
+
+  // --- Walking to a destination ----------------------------------------------
+  let navPath = [];      // remaining waypoints
+  let navArrive = null;  // callback once the last waypoint is reached
+  let navGoal = null;    // final destination, kept to re-plan when stuck
+  let navStuck = 0;
+  let navRetries = 0;
+
+  function cancelWalk() {
+    navPath = [];
+    navArrive = null;
+    navGoal = null;
+    navStuck = 0;
+  }
+
+  function walkTo(x, y, onArrival = null) {
+    const path = findPath(player.x, player.y, x, y);
+    if (!path || !path.length) {
+      cancelWalk();
+      return false;
+    }
+    navPath = path;
+    navArrive = onArrival;
+    navGoal = path[path.length - 1];
+    navStuck = 0;
+    navRetries = 0;
+    engageFollow();
+    spawnDestinationRipple(navGoal.x, navGoal.y);
+    return true;
+  }
+
+  // --- Dialogue box (typewriter) ---------------------------------------------
+  const Dialogue = (function () {
+    const box = document.querySelector('#gx-dialogue');
+    const nameEl = document.querySelector('#gx-dialogue-name');
+    const textEl = document.querySelector('#gx-dialogue-text');
+    const profile = (window.SITE_CONTENT && window.SITE_CONTENT.profile) || {};
+    const tokens = {
+      name: profile.name || 'Vivek',
+      firstName: (profile.name || 'Vivek').split(' ')[0],
+      email: profile.email || ''
+    };
+    const fill = s => String(s).replace(/\{(name|firstName|email)\}/g, (_, k) => tokens[k]);
+    let lines = [];
+    let index = 0;
+    let shown = 0;
+    let timer = 0;
+    let onClose = null;
+    let open = false;
+
+    function stopTyping() {
+      clearInterval(timer);
+      timer = 0;
+      box.classList.add('ready');
+    }
+
+    function startLine() {
+      shown = 0;
+      textEl.textContent = '';
+      box.classList.remove('ready');
+      box.classList.toggle('last', index === lines.length - 1);
+      clearInterval(timer);
+      timer = setInterval(() => {
+        const full = lines[index];
+        shown = Math.min(full.length, shown + 2);
+        textEl.textContent = full.slice(0, shown);
+        if (shown % 6 === 0 && soundEnabled) playTone(880, 0.02, 'square', 0.012);
+        if (shown >= full.length) stopTyping();
+      }, 24);
+    }
+
+    return {
+      isOpen: () => open,
+      open(speaker, color, rawLines, done) {
+        lines = (rawLines || []).map(fill).filter(Boolean);
+        if (!box || !lines.length) {
+          if (done) done();
+          return;
+        }
+        index = 0;
+        onClose = done || null;
+        open = true;
+        nameEl.textContent = speaker;
+        nameEl.style.background = color || '#e6b033';
+        box.hidden = false;
+        startLine();
+      },
+      // E / tap: finish the line that is typing, else go to the next one
+      advance() {
+        if (!open) return;
+        if (timer) {
+          textEl.textContent = lines[index];
+          stopTyping();
+        } else if (index < lines.length - 1) {
+          index++;
+          sfxClick();
+          startLine();
+        } else {
+          this.close();
+        }
+      },
+      close() {
+        if (!open) return;
+        clearInterval(timer);
+        timer = 0;
+        open = false;
+        box.hidden = true;
+        const cb = onClose;
+        onClose = null;
+        if (cb) cb();
+        canvas.focus({ preventScroll: true });
+      }
+    };
+  })();
+
+  // --- Cursor crew: the cursors that built the page live in town --------------
+  const CREW_COLORS = ['#e6b033', '#dc6f52', '#4f8e5f', '#38bdf8', '#c084fc', '#2dd4bf'];
+  // Where each crew member hovers (snapped to walkable ground at start-up)
+  const CREW_SPOTS = [
+    { x: 540, y: 330 },  // town square, next to the spawn point
+    { x: 700, y: 236 },  // outside the Projects Workshop
+    { x: 268, y: 460 },  // outside the AI Lab
+    { x: 108, y: 432 },  // by the Skills Arcade
+    { x: 660, y: 462 },  // outside the Contact Center
+    { x: 792, y: 228 }   // west end of the bridge
+  ];
+  // Fallback lines; the control panel (Game tab) overrides them via content.json
+  const CREW_DEFAULTS = [
+    { name: 'Arjun', lines: [
+      'Welcome to Portfolio Town. We are the town crew: we built this page, piece by piece.',
+      'Walk with WASD or tap the ground. Press E near doors, signs and crew members.',
+      'Every building holds part of {firstName}\'s work. The Career Observatory has the full resume.'
+    ] },
+    { name: 'Rahul', lines: [
+      '{firstName} ships things people use: a festival treasure hunt, a blood donation portal, an offline AI agent.',
+      'The Projects Workshop lists every project with its tech stack.'
+    ] },
+    { name: 'Meera', lines: [
+      'Inside the AI Lab: local LLMs on Ollama, tool-calling agents, retrieval, and a machine learning study on gene-expression data.',
+      'All of it runs on local hardware. No cloud APIs.'
+    ] },
+    { name: 'Zara', lines: [
+      'Skill chips are scattered around town. Each one is a tool {firstName} works with.',
+      'Collect them all, then check the Skills Arcade for the full list.'
+    ] },
+    { name: 'Leo', lines: [
+      'Hiring an intern? The Contact Center has {firstName}\'s email and profiles.',
+      '{firstName} is open to software and AI internships.'
+    ] },
+    { name: 'Kiran', lines: [
+      'Bugs roam this town. Jump on one to fix it.',
+      'As {firstName} says: every bug is another challenge.'
+    ] }
+  ];
+  const crew = [];
+  let hoverTarget = null; // crew member / pet under the mouse
+
+  // Name tags fade in near the player (or on hover / while talking) and out again
+  function nameAlpha(obj, dist, extraShow = false) {
+    const show = extraShow || hoverTarget === obj || (!cam.overview && dist < 64);
+    obj.labelA = (obj.labelA || 0) + ((show ? 1 : 0) - (obj.labelA || 0)) * 0.18;
+    return obj.labelA;
+  }
+
+  function drawNameTag(obj, dist, x, y, bg, fg, border, extraShow) {
+    const a = nameAlpha(obj, dist, extraShow);
+    if (a < 0.03) return;
+    ctx.save();
+    ctx.globalAlpha = a;
+    drawPixelPill(obj.tagText || obj.name, x, y, bg, fg, border);
+    ctx.restore();
+  }
+
+  function buildCrew() {
+    const game = (window.SITE_CONTENT && window.SITE_CONTENT.game) || {};
+    const saved = Array.isArray(game.crew) ? game.crew : [];
+    CREW_SPOTS.forEach((spot, i) => {
+      const data = saved[i] || {};
+      const fallback = CREW_DEFAULTS[i];
+      const lines = Array.isArray(data.lines) && data.lines.filter(Boolean).length ? data.lines : fallback.lines;
+      const p = snapToFree(spot);
+      crew.push({
+        id: `c${i}`, name: (data.name || fallback.name).slice(0, 16), lines,
+        x: p.x, y: p.y, color: CREW_COLORS[i % CREW_COLORS.length], phase: i * 1.7, cheer: 0
+      });
+    });
+  }
+
+  let talkingTo = null;
+
+  function talkToCrew(m) {
+    cancelWalk();
+    talkingTo = m;
+    player.facing = m.x < player.x ? 'left' : 'right';
+    m.cheer = 30;
+    sfxChimes();
+    Dialogue.open(m.name, m.color, m.lines, () => {
+      talkingTo = null;
+      if (Quests.crewMet(m.id)) spawnFloatingText(`+${Quests.XP.crew} XP`, m.x, m.y - 34, '#fde68a');
+    });
+  }
+
+  // Pixel-art townsfolk: one look per crew member (outfit takes their colour)
+  const CREW_LOOKS = [
+    { skin: '#e0ac69', hair: '#2b1b17', style: 'short', pants: '#334155', extra: 'glasses' },
+    { skin: '#c68642', hair: '#111827', style: 'cap', pants: '#1e3a5f', extra: 'laptop' },
+    { skin: '#f1c27d', hair: '#7c2d12', style: 'long', pants: '#3f3f46', extra: 'none' },
+    { skin: '#8d5524', hair: '#0f0f0f', style: 'bun', pants: '#365314', extra: 'headset' },
+    { skin: '#ffdbac', hair: '#a16207', style: 'short', pants: '#4c1d95', extra: 'mug' },
+    { skin: '#a8754f', hair: '#1f2937', style: 'spiky', pants: '#7f1d1d', extra: 'glasses' }
+  ];
+  const PX = 2.3; // world units per art pixel (about the player's size)
+
+  // Townsfolk from a generated sprite sheet: face the player, hop when talking
+  function drawCrewFromSheet(m, t, sheet) {
+    const met = Quests.hasMet(m.id);
+    const dx = player.x - m.x, dy = player.y - m.y;
+    const near = Math.hypot(dx, dy) < 140;
+    let dir = 'down';
+    if (near) dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+    const hop = m.cheer > 0 ? Math.abs(Math.sin(m.cheer * 0.35)) * 7 : 0;
+    const col = m.cheer > 0 ? WALK_CYCLE[Math.floor(m.cheer / 6) % 4] : 1;
+    const breathe = Math.floor(t * 1.6 + m.phase) % 2 ? -0.75 : 0;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(12, 22, 24, 0.32)';
+    ctx.beginPath();
+    ctx.ellipse(m.x, m.y, 10 - hop * 0.3, 3.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    drawSheetFrame(sheet, SHEET_DIR_ROW[dir], col, m.x, m.y - hop + breathe, player.h);
+    ctx.restore();
+
+    const headTop = m.y - hop - player.h;
+    drawNameTag(m, Math.hypot(dx, dy), m.x, m.y + 9, m.color, '#221612', '#221612', m.cheer > 0 || talkingTo === m);
+    const inReach = activeInteractable && activeInteractable.member === m;
+    if (!met && !inReach) drawPixelPill('!', m.x, headTop - 8 + Math.sin(t * 5 + m.phase) * 1.5, '#be5538', '#ffffff', '#ffd778');
+  }
+
+  function shade(hex, f) {
+    const n = parseInt(hex.slice(1), 16);
+    const ch = sh => Math.max(0, Math.min(255, Math.round(((n >> sh) & 255) * f)));
+    return `rgb(${ch(16)}, ${ch(8)}, ${ch(0)})`;
+  }
+
+  function drawCrewMember(m, t) {
+    const idx = parseInt(m.id.slice(1), 10);
+    const sheet = npcSheets[idx] && npcSheets[idx].sheet;
+    if (sheet) {
+      drawCrewFromSheet(m, t, sheet);
+      return;
+    }
+    const look = CREW_LOOKS[idx % CREW_LOOKS.length];
+    const met = Quests.hasMet(m.id);
+    const near = Math.hypot(player.x - m.x, player.y - m.y) < 140;
+    const facingLeft = near ? player.x < m.x : Math.sin(t * 0.4 + m.phase) < 0;
+    const hop = m.cheer > 0 ? Math.abs(Math.sin(m.cheer * 0.35)) * 7 : 0;
+    const breathe = Math.round(Math.sin(t * 2 + m.phase) * 0.6 * 2) / 2;
+    const blink = (t * 1000 + m.phase * 900) % 3600 < 140;
+    const shirt = m.color;
+
+    // Shadow stays on the ground while the body hops
+    ctx.save();
+    ctx.fillStyle = 'rgba(12, 22, 24, 0.32)';
+    ctx.beginPath();
+    ctx.ellipse(m.x, m.y, 10 - hop * 0.3, 3.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.translate(Math.round(m.x), Math.round(m.y - hop));
+    ctx.scale(facingLeft ? -PX : PX, PX);
+
+    // Parts in art pixels (origin at the feet, y up is negative); outline pass first
+    const parts = [];
+    const part = (x, y, w, h, c) => parts.push([x, y, w, h, c]);
+    const by = breathe; // upper body breathes, legs stay planted
+    part(-3, -5, 2, 5, look.pants); part(1, -5, 2, 5, look.pants);         // legs
+    part(-3, -1, 2, 1, '#1c1917'); part(1, -1, 2, 1, '#1c1917');           // shoes
+    part(-4, -12 + by, 8, 7, shirt);                                        // torso
+    part(2, -12 + by, 2, 7, shade(shirt, 0.82));                            // torso shading
+    part(-6, -12 + by, 2, 6, shade(shirt, 0.9)); part(4, -12 + by, 2, 6, shade(shirt, 0.82)); // arms
+    part(-6, -6 + by, 2, 1, look.skin); part(4, -6 + by, 2, 1, look.skin);  // hands
+    part(-1, -13 + by, 2, 1, look.skin);                                    // neck
+    part(-4, -20 + by, 8, 7, look.skin);                                    // head
+    // Hair
+    if (look.style === 'short' || look.style === 'spiky' || look.style === 'bun') {
+      part(-4, -21 + by, 8, 3, look.hair); part(-4, -18 + by, 1, 2, look.hair);
+    }
+    if (look.style === 'spiky') { part(-3, -22 + by, 1, 1, look.hair); part(0, -22 + by, 1, 1, look.hair); part(3, -22 + by, 1, 1, look.hair); }
+    if (look.style === 'bun') part(-1, -23 + by, 3, 2, look.hair);
+    if (look.style === 'long') { part(-4, -21 + by, 8, 3, look.hair); part(-5, -19 + by, 2, 8, look.hair); part(3, -19 + by, 2, 7, look.hair); }
+    if (look.style === 'cap') { part(-4, -21 + by, 8, 3, shade(shirt, 0.7)); part(2, -19 + by, 4, 1, shade(shirt, 0.6)); part(-4, -18 + by, 1, 2, look.hair); }
+    // Accessories
+    if (look.extra === 'laptop') { part(3, -9 + by, 5, 1, '#94a3b8'); part(4, -12 + by, 4, 3, '#1e293b'); }
+    if (look.extra === 'mug') { part(5, -8 + by, 2, 2, '#f8fafc'); }
+    if (look.extra === 'headset') { part(-4, -22 + by, 8, 1, '#1f2937'); part(-5, -18 + by, 1, 3, '#1f2937'); }
+
+    ctx.fillStyle = '#221612';
+    for (const [x, y, w, h] of parts) ctx.fillRect(x - 0.5, y - 0.5, w + 1, h + 1);
+    for (const [x, y, w, h, c] of parts) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
+
+    // Face (drawn after the outline so it stays crisp)
+    if (!blink) {
+      ctx.fillStyle = '#1c1917';
+      ctx.fillRect(0, -17 + by, 1, 1.4);
+      ctx.fillRect(2, -17 + by, 1, 1.4);
+    }
+    if (look.extra === 'glasses') {
+      ctx.strokeStyle = '#1c1917';
+      ctx.lineWidth = 0.45;
+      ctx.strokeRect(-0.6, -17.6 + by, 2.2, 2.2);
+      ctx.strokeRect(1.6, -17.6 + by, 2.2, 2.2);
+    }
+    ctx.fillStyle = shade(look.skin, 0.8);
+    ctx.fillRect(1, -14.6 + by, 2, 0.6); // mouth
+    if (m.cheer > 0) { ctx.fillStyle = '#9f1239'; ctx.fillRect(1, -14.8 + by, 2, 1); } // talking
+    ctx.restore();
+
+    const headTop = m.y - hop - 24 * PX;
+    drawNameTag(m, Math.hypot(player.x - m.x, player.y - m.y), m.x, m.y + 9, m.color, '#221612', '#221612', m.cheer > 0 || talkingTo === m);
+    // Unmet crew members carry a "!" so they read as someone to talk to
+    const inReach = activeInteractable && activeInteractable.member === m;
+    if (!met && !inReach) drawPixelPill('!', m.x, headTop - 8 + Math.sin(t * 5 + m.phase) * 1.5, '#be5538', '#ffffff', '#ffd778');
+  }
+
+  // --- Skill chips: collectibles named after the skills in content.json ------
+  const MAX_CHIPS = 12;
+  const CHIP_SPOTS = [
+    { x: 335, y: 100 },  // passage between the house and the Town Hall
+    { x: 642, y: 112 },  // passage between the Town Hall and the workshop
+    { x: 480, y: 174 },  // Town Hall steps
+    { x: 70, y: 104 },   // nook beside the house
+    { x: 56, y: 268 },   // west meadow
+    { x: 915, y: 222 },  // far end of the bridge
+    { x: 486, y: 512 },  // bottom of the south stairs
+    { x: 372, y: 464 },  // south walk, west
+    { x: 600, y: 464 },  // south walk, east
+    { x: 800, y: 286 },  // east garden
+    { x: 620, y: 292 },  // east of the square
+    { x: 300, y: 240 }   // west road
+  ];
+  const chips = [];
+  const slugify = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  function buildChips() {
+    const groups = (window.SITE_CONTENT && window.SITE_CONTENT.skills) || [];
+    const labels = [];
+    // Round-robin through the skill groups so every area of the resume shows up
+    for (let round = 0; round < 4 && labels.length < MAX_CHIPS; round++) {
+      for (const g of groups) {
+        const item = (g.items || [])[round];
+        if (item && !labels.includes(item) && labels.length < MAX_CHIPS) labels.push(item);
+      }
+    }
+    if (!labels.length) labels.push('Python', 'JavaScript', 'Flask', 'SQL', 'Git', 'Ollama', 'Pandas', 'Playwright');
+    labels.slice(0, CHIP_SPOTS.length).forEach((label, i) => {
+      const p = snapToFree(CHIP_SPOTS[i]);
+      const id = slugify(label);
+      chips.push({ id, label, x: p.x, y: p.y, phase: i * 0.9, taken: Quests.hasChip(id) });
+    });
+  }
+
+  function spawnFloatingText(text, x, y, color) {
+    actionParticles.push({ x, y, vx: 0, vy: -0.55, symbol: text, color, alpha: 1, life: 0, maxLife: 75 });
+  }
+
+  function sfxChip() {
+    if (!audioCtx) initAudio();
+    if (!soundEnabled) return;
+    [987.77, 1318.5, 1975.5].forEach((f, i) => setTimeout(() => playTone(f, 0.09, 'square', 0.04), i * 55));
+  }
+
+  function sfxSquash() {
+    if (!audioCtx) initAudio();
+    if (!soundEnabled) return;
+    playTone(140, 0.12, 'square', 0.07);
+    setTimeout(() => playTone(660, 0.08, 'triangle', 0.05), 70);
+  }
+
+  function collectChip(ch) {
+    ch.taken = true;
+    sfxChip();
+    spawnFloatingText(`+ ${ch.label}`, ch.x, ch.y - 14, '#bae6fd');
+    spawnActionSparkles(ch.x, ch.y - 8, '#7dd3fc', 'star');
+    Quests.chipCollected(ch.id);
+    const left = chips.filter(c => !c.taken).length;
+    if (left === 0) showToast(`◆ All ${chips.length} skill chips collected!`);
+    else if (left === chips.length - 1) showToast(`◆ Skill chip: ${ch.label}. ${left} more are hidden around town.`);
+  }
+
+  function updateChips() {
+    for (const ch of chips) {
+      if (ch.taken) continue;
+      const d = Math.hypot(player.x - ch.x, player.y - 6 - ch.y);
+      if (d < 34) { // drawn toward the player
+        ch.x += (player.x - ch.x) * 0.14;
+        ch.y += (player.y - 6 - ch.y) * 0.14;
+      }
+      if (d < 13) collectChip(ch);
+    }
+  }
+
+  function drawChip(ch, t) {
+    const y = ch.y - 10 + Math.sin(t * 3 + ch.phase) * 2.5;
+    ctx.save();
+    ctx.fillStyle = 'rgba(125, 211, 252, 0.3)';
+    ctx.beginPath();
+    ctx.ellipse(ch.x, ch.y + 1, 7, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.translate(ch.x, y);
+    ctx.scale(0.35 + 0.65 * Math.abs(Math.cos(t * 2.4 + ch.phase)), 1); // spinning
+    ctx.beginPath();
+    ctx.moveTo(0, -7); ctx.lineTo(6, 0); ctx.lineTo(0, 7); ctx.lineTo(-6, 0);
+    ctx.closePath();
+    ctx.fillStyle = '#0ea5e9';
+    ctx.fill();
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = '#f0f9ff';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -4); ctx.lineTo(3, 0); ctx.lineTo(0, 4); ctx.lineTo(-3, 0);
+    ctx.closePath();
+    ctx.fillStyle = '#bae6fd';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // --- Bugs: they scurry around; land a jump on one to fix it ----------------
+  const MAX_BUGS = 4;
+  const bugs = [];
+  let bugCooldown = 0;
+
+  function spawnBug() {
+    for (let tries = 0; tries < 40; tries++) {
+      const c = Math.floor(Math.random() * NAV_COLS);
+      const r = Math.floor(Math.random() * NAV_ROWS);
+      if (!navFree(c, r)) continue;
+      const p = cellCenter(c, r);
+      if (Math.hypot(p.x - player.x, p.y - player.y) < 130) continue;
+      bugs.push({ x: p.x, y: p.y, tx: p.x, ty: p.y, wait: 30, phase: Math.random() * 6, dir: 0, squash: 0 });
+      return;
+    }
+  }
+
+  function squashBug(b) {
+    b.squash = 1;
+    cam.shake = 5;
+    sfxSquash();
+    for (let i = 0; i < 8; i++) {
+      particles.push({
+        x: b.x, y: b.y, vx: (Math.random() - 0.5) * 2.4, vy: -(Math.random() * 1.8),
+        size: 1.6 + Math.random() * 1.4, life: 0, maxLife: 22, alpha: 0.9
+      });
+    }
+    const counted = Quests.bugFixed();
+    spawnFloatingText(counted ? `Bug fixed! +${Quests.XP.bug} XP` : 'Bug fixed!', b.x, b.y - 12, '#d9f99d');
+    bugCooldown = 200;
+  }
+
+  // Called when the player lands a jump
+  function stompAt(x, y) {
+    for (const b of bugs) {
+      if (!b.squash && Math.hypot(b.x - x, b.y - y) < 20) squashBug(b);
+    }
+  }
+
+  function updateBugs() {
+    if (bugCooldown > 0) bugCooldown--;
+    if (bugs.length < MAX_BUGS && bugCooldown === 0) {
+      spawnBug();
+      bugCooldown = 45;
+    }
+    for (let i = bugs.length - 1; i >= 0; i--) {
+      const b = bugs[i];
+      if (b.squash) {
+        if (++b.squash > 45) bugs.splice(i, 1);
+        continue;
+      }
+      let speed = 0.45;
+      const away = Math.hypot(player.x - b.x, player.y - b.y);
+      if (away < 40 && player.isGrounded) {
+        // Scurry away from footsteps (a jump lets you catch it)
+        const ax = (b.x - player.x) / (away || 1), ay = (b.y - player.y) / (away || 1);
+        b.tx = b.x + ax * 30;
+        b.ty = b.y + ay * 30;
+        b.wait = 0;
+        speed = 1.0;
+      } else if (b.wait > 0) {
+        b.wait--;
+        speed = 0;
+      } else if (Math.hypot(b.tx - b.x, b.ty - b.y) < 2) {
+        const a = Math.random() * Math.PI * 2, d = 20 + Math.random() * 50;
+        b.tx = b.x + Math.cos(a) * d;
+        b.ty = b.y + Math.sin(a) * d;
+        b.wait = 20 + Math.random() * 80;
+        speed = 0;
+      }
+      if (!speed) continue;
+      const dx = b.tx - b.x, dy = b.ty - b.y, dl = Math.hypot(dx, dy);
+      if (dl < 1) continue;
+      const nx = b.x + (dx / dl) * speed, ny = b.y + (dy / dl) * speed;
+      const cell = navCell(nx, ny);
+      if (navFree(cell.c, cell.r)) {
+        b.x = nx;
+        b.y = ny;
+        b.dir = Math.atan2(dy, dx);
+        b.phase += speed * 0.9;
+      } else { // blocked: stay and pick a new stroll target next time
+        b.tx = b.x;
+        b.ty = b.y;
+      }
+    }
+  }
+
+  function drawBug(b) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    if (b.squash) { // flattened splat that fades away
+      ctx.globalAlpha = Math.max(0, 1 - b.squash / 45);
+      ctx.fillStyle = '#4d7c0f';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 8, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+    ctx.fillStyle = 'rgba(12, 22, 24, 0.3)';
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 6, 2.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.rotate(b.dir);
+    ctx.strokeStyle = '#1c1917';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = -1; i <= 1; i++) { // six wiggling legs
+      const wig = Math.sin(b.phase * 2 + i * 2) * 1.6;
+      ctx.moveTo(i * 3, 0); ctx.lineTo(i * 3 + wig, -5.5);
+      ctx.moveTo(i * 3, 0); ctx.lineTo(i * 3 - wig, 5.5);
+    }
+    ctx.moveTo(5, -1); ctx.lineTo(8.5, -3); // antennae
+    ctx.moveTo(5, 1); ctx.lineTo(8.5, 3);
+    ctx.stroke();
+    ctx.fillStyle = '#b91c1c';
+    ctx.beginPath();
+    ctx.ellipse(-0.5, 0, 5.2, 3.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#450a0a';
+    ctx.beginPath();
+    ctx.arc(4.2, 0, 2.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(-5, -0.4, 7, 0.8);
+    ctx.fillStyle = '#fecaca';
+    ctx.fillRect(-3, -2.4, 1.4, 1.4);
+    ctx.fillRect(-0.5, 1.2, 1.4, 1.4);
+    ctx.restore();
+  }
+
+  // --- Luka follows the player once befriended -------------------------------
+  function updateAppuFollow() {
+    appu.walking = false;
+    if (!appu.follow) return;
+    // Heel position: just behind the player
+    const back = { left: [1, 0], right: [-1, 0], up: [0, 1], down: [0, -1] }[player.facing] || [0, 1];
+    const gx = player.x + back[0] * 26 + (back[1] ? 16 : 0);
+    const gy = player.y + back[1] * 18 + 3;
+    const dx = gx - appu.x, dy = gy - appu.y, d = Math.hypot(dx, dy);
+    if (d > 14) {
+      const speed = Math.min(4, 0.7 + d * 0.06);
+      const mx = (dx / d) * speed, my = (dy / d) * speed;
+      let moved = false;
+      if (!checkCollision(appu.x + mx, appu.y)) { appu.x += mx; moved = true; }
+      if (!checkCollision(appu.x, appu.y + my)) { appu.y += my; moved = true; }
+      if (Math.abs(dx) > 2) appu.facing = dx > 0 ? 'right' : 'left';
+      appu.walking = moved;
+      appu.stuck = moved ? 0 : appu.stuck + 1;
+    }
+    appu.lag = d > 70 ? appu.lag + 1 : 0;
+    // Stuck behind a wall or left far behind: catch up with a little puff
+    if (d > 240 || appu.stuck > 80 || appu.lag > 180) {
+      const p = snapToFree({ x: player.x + 20, y: player.y + 6 });
+      spawnSmoke(appu.x, appu.y - 6);
+      appu.x = p.x;
+      appu.y = p.y;
+      appu.stuck = 0;
+      appu.lag = 0;
+      spawnSmoke(appu.x, appu.y - 6);
+    }
+  }
+
+  // --- Interactables: one registry for everything used with E / tap ----------
+  const BULLETIN_SPOT = { x: 835, y: 445 };
+  const SIGNPOST_SPOT = { x: 428, y: 240 };
+  const interactables = [];
+  let activeInteractable = null;
+
+  function readSignpost() {
+    const name = id => (BUILDINGS.find(b => b.id === id) || {}).shortName || id;
+    Dialogue.open('Signpost', '#b45309', [
+      `North: Town Hall. East: ${name('projects')}, and ${name('observatory')} across the bridge.`,
+      `West: ${name('about')} and ${name('kaapi')}. South: ${name('skills')}, ${name('arcade')} and ${name('contact')}.`
+    ]);
+  }
+
+  function buildInteractables() {
+    crew.forEach(m => interactables.push({
+      id: `crew-${m.id}`, kind: 'crew', member: m, r: 40, promptDy: -66,
+      pos: () => m,
+      label: () => `Talk to ${m.name}`,
+      approach: () => ({ x: m.x + (player.x < m.x ? -22 : 22), y: m.y + 6 }),
+      hit: (x, y) => Math.abs(x - m.x) < 16 && y < m.y + 6 && y > m.y - 58,
+      use: () => talkToCrew(m)
+    }));
+    interactables.push({
+      id: 'appu', kind: 'npc', r: 42, promptDy: -40,
+      pos: () => appu,
+      label: () => 'Pet Luka',
+      approach: () => ({ x: appu.x + (player.x < appu.x ? -24 : 24), y: appu.y + 2 }),
+      hit: (x, y) => Math.hypot(x - appu.x, y - (appu.y - 8)) < 22,
+      use: petAppu
+    });
+    interactables.push({
+      id: 'bulletin', kind: 'object', r: 52, promptDy: -46,
+      pos: () => BULLETIN_SPOT,
+      label: () => 'Read the notice board',
+      approach: () => ({ x: 805, y: 452 }),
+      hit: (x, y) => Math.hypot(x - BULLETIN_SPOT.x, y - (BULLETIN_SPOT.y - 14)) < 28,
+      use: openCampusBulletin
+    });
+    interactables.push({
+      id: 'signpost', kind: 'object', r: 34, promptDy: -46,
+      pos: () => SIGNPOST_SPOT,
+      label: () => 'Read the signpost',
+      approach: () => ({ x: 428, y: 254 }),
+      hit: (x, y) => Math.hypot(x - 428, y - 222) < 20,
+      use: readSignpost
+    });
+    BUILDINGS.forEach(b => interactables.push({
+      id: `door-${b.id}`, kind: 'door', building: b, r: 46, promptDy: -30,
+      pos: () => b.door,
+      label: () => `Enter ${b.shortName}`,
+      approach: () => b.stand,
+      hit: (x, y) => x >= b.box.x && x <= b.box.x + b.box.w && y >= b.box.y && y <= b.box.y + b.box.h,
+      use: () => openBuilding(b.id)
+    }));
+    // The bridge is a zone rather than a spot: anywhere on it works
+    interactables.push({
+      id: 'bridge', kind: 'zone', r: 0, promptDy: -80,
+      inside: () => player.x >= 840 && player.y >= 198 && player.y <= 245,
+      pos: () => player,
+      label: () => 'Toss a wishing coin',
+      use: tossWishingCoin
+    });
+  }
+
+  // Nearest usable thing in reach (the bridge zone only when nothing else is)
+  function findActiveInteractable() {
+    let best = null, bestD = Infinity;
+    for (const it of interactables) {
+      if (it.kind === 'zone') continue;
+      const p = it.pos();
+      const d = Math.hypot(player.x - p.x, player.y - p.y);
+      if (d < it.r && d < bestD) { best = it; bestD = d; }
+    }
+    if (best) return best;
+    return interactables.find(it => it.kind === 'zone' && it.inside()) || null;
+  }
+
+  // --- Minimap (HUD canvas, top right) ----------------------------------------
+  const minimap = document.querySelector('#gx-minimap');
+  const miniCtx = minimap ? minimap.getContext('2d') : null;
+  let miniFrame = 0;
+
+  function drawMinimap() {
+    if (!miniCtx || miniFrame++ % 4) return;
+    const W = minimap.width, H = minimap.height, k = W / WORLD_W;
+    const dot = (x, y, size, color) => {
+      miniCtx.fillStyle = color;
+      miniCtx.fillRect(Math.round(x * k - size / 2), Math.round(y * k - size / 2), size, size);
+    };
+    miniCtx.clearRect(0, 0, W, H);
+    if (townMapImg.complete && townMapImg.naturalWidth > 0) miniCtx.drawImage(townMapImg, 0, 0, W, H);
+    miniCtx.fillStyle = 'rgba(13, 23, 26, 0.32)';
+    miniCtx.fillRect(0, 0, W, H);
+
+    for (const ch of chips) if (!ch.taken) dot(ch.x, ch.y, 4, '#7dd3fc');
+    for (const b of bugs) if (!b.squash) dot(b.x, b.y, 3, '#f87171');
+    for (const m of crew) dot(m.x, m.y, 5, Quests.hasMet(m.id) ? '#94a3b8' : m.color);
+    dot(appu.x, appu.y, 4, '#f59e0b');
+    const next = Quests.nextBuilding();
+    for (const b of BUILDINGS) {
+      dot(b.door.x, b.door.y, 9, '#132226');
+      dot(b.door.x, b.door.y, 6, visitedBuildings.has(b.id) ? '#5eead4' : '#fbbf24');
+      if (next === b && Math.floor(Date.now() / 400) % 2) {
+        miniCtx.strokeStyle = '#ffffff';
+        miniCtx.lineWidth = 1.5;
+        miniCtx.strokeRect(b.door.x * k - 6.5, b.door.y * k - 6.5, 13, 13);
+      }
+    }
+    if (cam.zoom > 1.02) { // what the camera currently shows
+      miniCtx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      miniCtx.lineWidth = 1.5;
+      miniCtx.strokeRect(cam.x * k, cam.y * k, viewW() * k, viewH() * k);
+    }
+    miniCtx.fillStyle = '#132226';
+    miniCtx.beginPath();
+    miniCtx.arc(player.x * k, (player.y - 6) * k, 5, 0, Math.PI * 2);
+    miniCtx.fill();
+    miniCtx.fillStyle = '#ffffff';
+    miniCtx.beginPath();
+    miniCtx.arc(player.x * k, (player.y - 6) * k, 3.2, 0, Math.PI * 2);
+    miniCtx.fill();
+  }
+
+  // --- Finale: every quest done ----------------------------------------------
+  const finaleEl = document.querySelector('#gx-finale');
+  let finalePending = false;
+
+  function showFinale() {
+    finalePending = false;
+    sfxCelebration();
+    const colors = ['#fbbf24', '#f472b6', '#38bdf8', '#a3e635', '#c084fc'];
+    for (let i = 0; i < 36; i++) {
+      actionParticles.push({
+        x: player.x + (Math.random() - 0.5) * 120, y: player.y - 20 - Math.random() * 60,
+        vx: (Math.random() - 0.5) * 1.6, vy: -(0.4 + Math.random() * 1.4),
+        symbol: i % 2 ? '✦' : '■', color: colors[i % colors.length], alpha: 1, life: 0, maxLife: 70 + Math.random() * 40
+      });
+    }
+    if (finaleEl) finaleEl.hidden = false;
+  }
+  const finaleOpen = () => !!finaleEl && !finaleEl.hidden;
+  const closeFinale = () => { if (finaleEl) finaleEl.hidden = true; };
+  Quests.onAllDone = () => { finalePending = true; };
+  if (mapBtn) mapBtn.addEventListener('click', () => { initAudio(); toggleOverview(); canvas.focus({ preventScroll: true }); });
+  if (finaleEl) {
+    finaleEl.addEventListener('click', e => {
+      const btn = e.target.closest('[data-finale]');
+      if (!btn) return;
+      sfxClick();
+      closeFinale();
+      if (btn.dataset.finale === 'resume') switchRoute('pro');
+      else if (btn.dataset.finale === 'contact') switchRoute('contact');
+      else canvas.focus({ preventScroll: true });
+    });
+  }
+  const dialogueEl = document.querySelector('#gx-dialogue');
+  if (dialogueEl) dialogueEl.addEventListener('click', () => Dialogue.advance());
 
   // --- Game Loop Update ---
   // Fixed-step simulation: all physics, timers and particles advance at 60 ticks/s
@@ -2181,6 +3410,7 @@
         player.isGrounded = true;
         sfxLand();
         spawnLandingRing(player.x, player.y);
+        stompAt(player.x, player.y);
         if (player.actionState === 'jump') {
           player.actionState = 'none';
         }
@@ -2233,78 +3463,95 @@
       }
     }
 
-    // 4. Movement Logic
-    const canWalk = !isDialogOpen && (player.actionState === 'none' || player.actionState === 'jump');
+    // 4. Movement: keys and the touch pad steer directly, otherwise follow the planned path
+    const busy = isDialogOpen || Dialogue.isOpen() || isBulletinOpen() || finaleOpen();
+    const canWalk = !busy && (player.actionState === 'none' || player.actionState === 'jump');
+    let ix = 0;
+    let iy = 0;
+    let currentSpeed = 0;
 
     if (canWalk) {
       player.running = keys.has('Shift');
-      const baseMoveSpeed = player.running ? player.runSpeed : player.speed;
-      const currentSpeed = baseMoveSpeed * caffeineMultiplier;
+      if (keys.has('ArrowUp') || keys.has('w')) iy -= 1;
+      if (keys.has('ArrowDown') || keys.has('s')) iy += 1;
+      if (keys.has('ArrowLeft') || keys.has('a')) ix -= 1;
+      if (keys.has('ArrowRight') || keys.has('d')) ix += 1;
 
-      let dx = 0;
-      let dy = 0;
-
-      // Manual key input cancels auto-walk so player has full immediate control
-      if (keys.has('ArrowUp') || keys.has('w') || keys.has('ArrowDown') || keys.has('s') || keys.has('ArrowLeft') || keys.has('a') || keys.has('ArrowRight') || keys.has('d')) {
-        targetDestination = null;
-        targetWaypoints = [];
+      if (ix || iy) {
+        // Manual input takes over from any planned walk
+        cancelWalk();
+        engageFollow();
       }
+      const base = player.running ? player.runSpeed : (navPath.length ? player.navSpeed : player.speed);
+      currentSpeed = base * caffeineMultiplier;
 
-      if (keys.has('ArrowUp') || keys.has('w')) dy -= 1;
-      if (keys.has('ArrowDown') || keys.has('s')) dy += 1;
-      if (keys.has('ArrowLeft') || keys.has('a')) dx -= 1;
-      if (keys.has('ArrowRight') || keys.has('d')) dx += 1;
-
-      if (targetDestination) {
-        const toX = targetDestination.x - player.x;
-        const toY = targetDestination.y - player.y;
-        const dist = Math.hypot(toX, toY);
-
-        if (dist < 5) {
-          player.x = targetDestination.x;
-          player.y = targetDestination.y;
-          const callback = targetDestination.onArrival;
-          targetDestination = null;
-          if (callback) callback();
+      if (!(ix || iy) && navPath.length) {
+        const wp = navPath[0];
+        const dx = wp.x - player.x;
+        const dy = wp.y - player.y;
+        const d = Math.hypot(dx, dy);
+        if (d <= Math.max(3, currentSpeed)) {
+          navPath.shift();
+          if (!navPath.length) {
+            // Arrived: settle on the spot, then run the arrival action
+            if (!checkCollision(wp.x, wp.y)) {
+              player.x = wp.x;
+              player.y = wp.y;
+            }
+            player.vx = 0;
+            player.vy = 0;
+            const arrived = navArrive;
+            cancelWalk();
+            if (arrived) arrived();
+          }
         } else {
-          dx = toX / dist;
-          dy = toY / dist;
+          ix = dx / d;
+          iy = dy / d;
         }
       }
+    }
 
-      if (dx !== 0 || dy !== 0) {
-        player.moving = true;
-        player.idleTimer = 0;
-        player.stepTimer += 0.22;
+    // Ease velocity toward the wanted direction (smooth starts and stops)
+    const steer = Math.hypot(ix, iy);
+    const wantX = steer ? (ix / steer) * currentSpeed : 0;
+    const wantY = steer ? (iy / steer) * currentSpeed : 0;
+    const ease = steer ? 0.5 : 0.6; // quick, game-like starts and stops
+    player.vx += (wantX - player.vx) * ease;
+    player.vy += (wantY - player.vy) * ease;
+    if (Math.abs(player.vx) < 0.03) player.vx = 0;
+    if (Math.abs(player.vy) < 0.03) player.vy = 0;
 
-        if (Math.abs(dx) > Math.abs(dy)) {
-          player.facing = dx > 0 ? 'right' : 'left';
-        } else {
-          player.facing = dy > 0 ? 'down' : 'up';
-        }
+    const fromX = player.x;
+    const fromY = player.y;
+    if (player.vx) {
+      if (!checkCollision(player.x + player.vx, player.y)) player.x += player.vx;
+      else player.vx = 0;
+    }
+    if (player.vy) {
+      if (!checkCollision(player.x, player.y + player.vy)) player.y += player.vy;
+      else player.vy = 0;
+    }
+    const moved = Math.hypot(player.x - fromX, player.y - fromY);
 
-        const length = Math.hypot(dx, dy);
-        const moveX = (dx / length) * currentSpeed;
-        const moveY = (dy / length) * currentSpeed;
+    if (steer) {
+      player.idleTimer = 0;
+      if (Math.abs(ix) > Math.abs(iy)) player.facing = ix > 0 ? 'right' : 'left';
+      else player.facing = iy > 0 ? 'down' : 'up';
+    }
 
-        if (!checkCollision(player.x + moveX, player.y)) {
-          player.x += moveX;
-        }
-        if (!checkCollision(player.x, player.y + moveY)) {
-          player.y += moveY;
-        }
-
-        player.dustTimer++;
-        if (player.dustTimer % (player.running ? 6 : 10) === 0 && player.isGrounded) {
-          const terrain = getTerrainType(player.x, player.y);
-          sfxTerrainStep(terrain);
-          spawnFootstepDust(player.x, player.y);
-        }
-      } else {
-        player.moving = false;
-        player.stepTimer = 0;
+    if (moved > 0.2) {
+      player.moving = true;
+      player.stepTimer += 0.22 * (moved / 2.3);
+      player.dustTimer++;
+      if (player.dustTimer % (player.running ? 6 : 10) === 0 && player.isGrounded) {
+        sfxTerrainStep(getTerrainType(player.x, player.y));
+        spawnFootstepDust(player.x, player.y);
+      }
+    } else {
+      player.moving = false;
+      player.stepTimer = 0;
+      if (!steer && canWalk) {
         player.idleTimer++;
-
         if (player.idleTimer === 280) {
           player.facing = player.facing === 'left' ? 'right' : 'left';
         } else if (player.idleTimer === 420) {
@@ -2313,9 +3560,22 @@
           setPlayerBubble('Zzz...', '💤', 180);
         }
       }
-    } else {
-      player.moving = false;
-      player.stepTimer = 0;
+    }
+
+    // A planned walk that stops making progress is re-planned, then dropped
+    if (navPath.length && canWalk) {
+      navStuck = moved < 0.2 ? navStuck + 1 : 0;
+      if (navStuck > 40) {
+        const goal = navGoal;
+        const path = goal && navRetries < 2 ? findPath(player.x, player.y, goal.x, goal.y) : null;
+        if (path && path.length) {
+          navPath = path;
+          navStuck = 0;
+          navRetries++;
+        } else {
+          cancelWalk();
+        }
+      }
     }
 
     // 5. Thought Bubble
@@ -2370,9 +3630,8 @@
       if (mt.life >= mt.maxLife) motionTrails.splice(i, 1);
     }
 
-    // 7. Appu Mascot Simulation
+    // 7. Luka: wags, hops when petted, follows once befriended
     appu.wagTimer += 0.22;
-    appu.hopTimer += 0.04;
     if (appu.state === 'happy') {
       appu.hopZ += appu.hopVz;
       appu.hopVz -= 0.35;
@@ -2386,13 +3645,14 @@
       appu.bubble.timer++;
       if (appu.bubble.timer >= appu.bubble.maxTimer) appu.bubble = null;
     }
+    updateAppuFollow();
 
-    // 8. Koi Fish Swimming & Pond Ripples
+    // 8. Koi circle their pond and leave ripples
     for (const fish of koiFish) {
-      fish.phase += fish.speed * 0.02;
+      fish.angle += fish.speed;
+      fish.x = fish.cx + Math.cos(fish.angle) * fish.rx;
+      fish.y = fish.cy + Math.sin(fish.angle) * fish.ry;
       fish.finWag += 0.22;
-      fish.x += Math.cos(fish.phase) * (fish.speed * 0.45);
-      fish.y += Math.sin(fish.phase * 0.8) * (fish.speed * 0.35);
       if (Math.random() < 0.015) {
         pondRipples.push({
           x: fish.x,
@@ -2402,13 +3662,6 @@
           alpha: 0.65
         });
       }
-    }
-
-    for (let i = pondRipples.length - 1; i >= 0; i--) {
-      const rp = pondRipples[i];
-      rp.radius += 0.35;
-      rp.alpha -= 0.012;
-      if (rp.alpha <= 0 || rp.radius >= rp.maxRadius) pondRipples.splice(i, 1);
     }
 
     // 9. Wishing Coins Parabolic Trajectory & Splash
@@ -2466,6 +3719,14 @@
       if (sp.life >= sp.maxLife) steamPuffs.splice(i, 1);
     }
 
+
+    // 11. World entities, the thing in reach, and the camera
+    updateChips();
+    updateBugs();
+    for (const m of crew) if (m.cheer > 0) m.cheer--;
+    activeInteractable = busy ? null : findActiveInteractable();
+    updateCamera();
+    if (finalePending && !busy && player.isGrounded) showFinale();
   }
 
   // HUD text is only written to the DOM when it actually changes (avoids 60 writes/s)
@@ -2474,35 +3735,43 @@
     if (hudLocation.textContent !== locationText) hudLocation.textContent = locationText;
   }
 
+  const isTouch = window.matchMedia('(pointer: coarse)').matches;
+
   function updateHud() {
-    const nearbyBuilding = getNearbyBuilding();
-    if (nearbyBuilding) {
-      setHudText(`Press [E] or Click to enter ${nearbyBuilding.name}`, `📍 ${nearbyBuilding.name}`);
-    } else if (player.x >= 840 && player.x <= 960 && player.y >= 198 && player.y <= 245) {
-      setHudText(`Press [E] to flip a coin into the river for Rajagiri fortunes`, `📍 East River Stone Bridge 🌉`);
-    } else if (Math.hypot(player.x - appu.x, player.y - appu.y) < 52) {
-      setHudText(`Press [E] or Click to pet Appu the campus mascot 🐾`, `📍 West Meadow · Appu 🐕`);
-    } else if (Math.hypot(player.x - 835, player.y - 445) < 55) {
-      setHudText(`Press [E] or Click to read the Campus Bulletin board 📜`, `📍 South Plaza · Campus Bulletin 📜`);
-    } else if (Math.hypot(player.x - 489, player.y - 298) < 58) {
-      setHudText(`Town Crossroads · North: Town Hall | East: Observatory | West: Cafe & Arcade 🧭`, `📍 Town Square Plaza · Central Compass 🧭`);
+    let status;
+    if (Dialogue.isOpen()) {
+      status = isTouch ? 'Tap the text box to continue' : 'Press E to continue';
+    } else if (activeInteractable) {
+      status = `${isTouch ? 'Tap ENTER' : 'Press E'}: ${activeInteractable.label()}`;
+    } else if (!Quests.bugsDone() && bugs.some(b => !b.squash && Math.hypot(b.x - player.x, b.y - player.y) < 70)) {
+      status = isTouch ? 'A bug! Tap JUMP to land on it' : 'A bug! Jump on it (Space) to fix it';
     } else if (player.caffeineTimer > 0) {
-      setHudText(`⚡ Caffeine Rush Active! (+35% Speed)`, `📍 ${getCurrentZoneName()}`);
+      status = '⚡ Coffee boost: +35% speed';
     } else {
-      setHudText(player.running ? 'Running · Release Shift to walk' : 'WASD / Click to walk · Space to jump · C for coffee', `📍 ${getCurrentZoneName()}`);
+      status = Quests.nextHint();
     }
+    setHudText(status, `📍 ${getCurrentZoneName()}`);
   }
 
   // --- Render Frame ---
   function render() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const t = Date.now() * 0.001;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#132226';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // ---- World space: camera transform, snapped to whole pixels ----
+    const s = renderScale * cam.zoom;
+    const shakeX = cam.shake ? (Math.random() - 0.5) * cam.shake : 0;
+    const shakeY = cam.shake ? (Math.random() - 0.5) * cam.shake : 0;
+    ctx.setTransform(s, 0, 0, s, Math.round((shakeX - cam.x) * s), Math.round((shakeY - cam.y) * s));
 
     // 1. World Map Background
     if (townMapImg.complete && townMapImg.naturalWidth > 0) {
-      ctx.drawImage(townMapImg, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(townMapImg, 0, 0, WORLD_W, WORLD_H);
     } else {
       ctx.fillStyle = '#79ad5b';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, WORLD_W, WORLD_H);
     }
 
     // 2. East River Water Ripple & Living Koi Fish Swimming
@@ -2530,15 +3799,14 @@
       }
     }
 
-    // 4. Interactive Town Map Landmarks, Fixtures & New 16-Bit Assets
+    // 4. Town fixtures drawn on top of the map
     drawNewBuildingsAndProps();
-    drawCampusBulletinStand();
-    drawAppu();
 
-    // 5. Building Entrance Doorstep Lights & Hover Indicators
+    // 5. Doorstep lights and building signs
     const time = Date.now() * 0.004;
+    const nearDoor = activeInteractable && activeInteractable.kind === 'door' ? activeInteractable.building : null;
     for (const b of BUILDINGS) {
-      const isNearby = getNearbyBuilding() === b;
+      const isNearby = nearDoor === b;
 
       ctx.save();
       const auraPulse = Math.sin(time + b.door.x) * 0.25 + 0.55;
@@ -2555,15 +3823,12 @@
       const badgeBorderCol = isNearby ? '#ffffff' : (isVisited ? '#38bdf8' : '#e6b033');
       const badgePrefix = isVisited ? '✓ ' : '';
       drawPixelPill(`${badgePrefix}${b.shortName}`, b.sign.x, signY, badgeBg, badgeTextCol, badgeBorderCol);
-
-      if (isNearby) {
-        const promptY = b.door.y - 28 + Math.sin(time * 2) * 3;
-        drawPixelPill('▶ [E] VISIT ◀', b.door.x, promptY, '#be5538', '#ffffff', '#ffd778');
-      }
       ctx.restore();
     }
 
-    // 6. Footstep Dust
+    // 6. Ground level: skill chips, bugs, footstep dust
+    for (const ch of chips) if (!ch.taken) drawChip(ch, t);
+    for (const b of bugs) drawBug(b);
     for (const p of particles) {
       if (!p.type) {
         ctx.save();
@@ -2595,52 +3860,174 @@
     // 8. River Wishing Coins in Flight
     drawWishingCoins();
 
-    // 9. Draw Player Character
-    drawPlayer();
+    // 9. Characters, sorted by depth: whoever stands lower is drawn in front
+    const actors = [{ y: appu.y, draw: drawAppu }, { y: player.y, draw: drawPlayer }];
+    for (const m of crew) actors.push({ y: m.y, draw: () => drawCrewMember(m, t) });
+    for (const pr of PROPS) actors.push({ y: pr.y, draw: pr.draw });
+    // Scenery is redrawn only where a character stands behind it and overlaps it
+    const bodies = [
+      { x: player.x - player.w / 2, y: player.y - player.h - player.jumpZ - 12, w: player.w, h: player.h + player.jumpZ + 14, foot: player.y },
+      { x: appu.x - 14, y: appu.y - 30, w: 28, h: 32, foot: appu.y }
+    ];
+    for (const m of crew) bodies.push({ x: m.x - 14, y: m.y - 62, w: 28, h: 64, foot: m.y });
+    for (const o of OCCLUDERS) {
+      const [bx, by, bw, bh] = o.box;
+      const hidden = bodies.some(bd => bd.foot < o.base && bd.x < bx + bw && bd.x + bd.w > bx && bd.y < by + bh && bd.y + bd.h > by);
+      if (hidden) actors.push({ y: o.base, draw: () => drawOccluder(o) });
+    }
+    actors.sort((a, b) => a.y - b.y);
+    for (const a of actors) a.draw();
 
-    // 10. Action Particles (Code, Stars, Notes)
+    // 10. Floating symbols and text (sparkles, "+ Python", "+15 XP")
+    const k = labelScale();
     for (const ap of actionParticles) {
       ctx.save();
+      ctx.translate(ap.x, ap.y);
+      ctx.scale(k, k);
       ctx.fillStyle = ap.color;
       ctx.globalAlpha = ap.alpha;
       ctx.font = '10px "Press Start 2P", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(ap.symbol, ap.x, ap.y);
+      ctx.fillText(ap.symbol, 0, 0);
       ctx.restore();
     }
 
     // 11. Chimney Smoke
-    for (const s of smokePuffs) {
+    for (const sm of smokePuffs) {
       ctx.save();
-      ctx.fillStyle = `rgba(245, 248, 250, ${s.alpha})`;
+      ctx.fillStyle = `rgba(245, 248, 250, ${sm.alpha})`;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+      ctx.arc(sm.x, sm.y, sm.size, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
 
-    // 12. Contextual Interactive Badges (Pills)
-    const animPulse = Math.sin(time * 3) * 2;
-    if (player.x >= 840 && player.x <= 960 && player.y >= 198 && player.y <= 245) {
-      drawPixelPill('🪙 [E] TOSS WISHING COIN', player.x, player.y - 44 + animPulse, '#0284c7', '#ffffff', '#7dd3fc');
-    } else if (Math.hypot(player.x - appu.x, player.y - appu.y) < 52) {
-      drawPixelPill('🐾 [E] PET APPU', appu.x, appu.y - 38 + animPulse, '#e11d48', '#ffffff', '#fda4af');
-    } else if (Math.hypot(player.x - 835, player.y - 445) < 55) {
-      drawPixelPill('📜 [E] READ BULLETIN', 835, 412 + animPulse, '#78350f', '#fef3c7', '#f59e0b');
+    // 12. Prompt above whatever is in reach
+    if (activeInteractable) {
+      const p = activeInteractable.pos();
+      const label = activeInteractable.label().toUpperCase();
+      drawPixelPill(isTouch ? `▶ ${label}` : `[E] ${label}`, p.x, p.y + activeInteractable.promptDy + Math.sin(time * 3) * 2,
+        '#be5538', '#ffffff', '#ffd778');
     }
 
     // 13. Time of Day Lighting
     drawLightingOverlay();
+    if (timeOfDay !== 'day') {
+      // Skill chips keep glowing in the dark so they stay findable
+      for (const ch of chips) {
+        if (ch.taken) continue;
+        const glow = ctx.createRadialGradient(ch.x, ch.y - 10, 1, ch.x, ch.y - 10, 16);
+        glow.addColorStop(0, 'rgba(125, 211, 252, 0.55)');
+        glow.addColorStop(1, 'rgba(125, 211, 252, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(ch.x, ch.y - 10, 16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
     // 14. Collision Hitbox Debugger Overlay
     drawHitboxDebugger();
+
+    // ---- Screen space: 960x540 units, independent of the camera ----
+    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+    drawObjectiveArrow();
+    drawMinimap();
+  }
+
+  // Sprite props drawn in depth order with the characters
+  const PROPS = [
+    { y: 238, draw: () => {
+      const sp = getTransparentSprite(townAssetsImg);
+      if (!sp) return;
+      drawShadow(428, 238, 10, 4);
+      ctx.drawImage(sp, 195, 165, 115, 170, 417, 204, 22, 34);
+    } },
+    { y: 196, draw: () => {
+      const sp = getTransparentSprite(townAssetsImg);
+      if (!sp) return;
+      drawShadow(936, 196, 11, 4);
+      ctx.drawImage(sp, 325, 27, 130, 200, 925, 164, 22, 34);
+      const now = Date.now();
+      ctx.fillStyle = Math.sin(now * 0.01) > 0 ? '#22c55e' : '#15803d';
+      ctx.fillRect(929, 172, 3, 2);
+      ctx.fillStyle = Math.cos(now * 0.012) > 0 ? '#38bdf8' : '#0369a1';
+      ctx.fillRect(929, 177, 3, 2);
+    } },
+    { y: 86, draw: () => {
+      const sp = getTransparentSprite(townAssetsImg);
+      if (!sp) return;
+      drawShadow(88, 86, 14, 5);
+      ctx.drawImage(sp, 290, 295, 195, 180, 72, 60, 32, 28);
+    } },
+    { y: 445, draw: () => drawCampusBulletinStand() }
+  ];
+
+  // Redraw a piece of the map (lamppost, tree, sign) on top of whoever is behind it
+  function drawOccluder(o) {
+    if (!townMapImg.complete || !townMapImg.naturalWidth) return;
+    const kx = townMapImg.naturalWidth / WORLD_W, ky = townMapImg.naturalHeight / WORLD_H;
+    const [bx, by, bw, bh] = o.box;
+    ctx.save();
+    ctx.beginPath();
+    if (o.r) ctx.rect(...o.r);
+    if (o.r2) ctx.rect(...o.r2);
+    if (o.e) ctx.ellipse(o.e[0], o.e[1], o.e[2], o.e[3], 0, 0, Math.PI * 2);
+    if (o.p) { ctx.moveTo(...o.p[0]); o.p.slice(1).forEach(pt => ctx.lineTo(...pt)); ctx.closePath(); }
+    ctx.clip();
+    ctx.drawImage(townMapImg, bx * kx, by * ky, bw * kx, bh * ky, bx, by, bw, bh);
+    ctx.restore();
+  }
+
+  // Edge-of-screen arrow toward the next unvisited building (follow camera only)
+  function drawObjectiveArrow() {
+    if (cam.zoom < 1.08) return;
+    const b = Quests.nextBuilding();
+    if (!b) return;
+    const p = worldToScreen(b.door.x, b.door.y - 24);
+    const u = SCREEN_W / cssWidth; // screen units per CSS pixel
+    const left = 26 * u, right = SCREEN_W - 26 * u, top = 48 * u, bottom = screenH - 30 * u;
+    if (p.x >= left && p.x <= right && p.y >= top && p.y <= bottom) return; // already in view
+
+    const cx = SCREEN_W / 2, cy = (top + bottom) / 2;
+    const dx = p.x - cx, dy = p.y - cy;
+    const reach = Math.min(
+      (dx > 0 ? right - cx : cx - left) / Math.abs(dx || 1e-6),
+      (dy > 0 ? bottom - cy : cy - top) / Math.abs(dy || 1e-6)
+    );
+    const ax = cx + dx * reach, ay = cy + dy * reach;
+    const angle = Math.atan2(dy, dx);
+    const size = 9 * uiK;
+    const pulse = 1 + Math.sin(Date.now() * 0.006) * 0.12;
+
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(angle);
+    ctx.scale(pulse, pulse);
+    ctx.beginPath();
+    ctx.moveTo(size, 0);
+    ctx.lineTo(-size * 0.7, -size * 0.75);
+    ctx.lineTo(-size * 0.3, 0);
+    ctx.lineTo(-size * 0.7, size * 0.75);
+    ctx.closePath();
+    ctx.fillStyle = '#fbbf24';
+    ctx.fill();
+    ctx.lineWidth = 1.5 * uiK;
+    ctx.strokeStyle = '#221612';
+    ctx.stroke();
+    ctx.restore();
+
+    // Name of the place, tucked just inside the arrow
+    const lx = clamp(ax - Math.cos(angle) * size * 3.4, left + 44 * u, right - 44 * u);
+    const ly = clamp(ay - Math.sin(angle) * size * 2.6, top + 10 * u, bottom - 10 * u);
+    drawPixelPill(b.shortName, lx, ly, '#1e3337', '#fff8e1', '#fbbf24', uiK);
   }
 
   // --- Living World Rendering Helpers ---
   function drawKoiFish() {
     ctx.save();
     for (const fish of koiFish) {
-      const angle = fish.phase;
+      const angle = fish.angle + Math.PI / 2; // swim along the orbit
       ctx.save();
       ctx.translate(fish.x, fish.y);
       ctx.rotate(angle);
@@ -2766,16 +4153,18 @@
     ctx.strokeStyle = '#d97706';
     ctx.stroke();
 
-    // Tiny Paws
+    // Tiny Paws (trotting while following)
+    const trot = appu.walking ? Math.sin(appu.wagTimer * 3) * 1.5 : 0;
     ctx.fillStyle = '#b45309';
-    ctx.fillRect(-5, -2, 3, 3);
-    ctx.fillRect(3, -2, 3, 3);
+    ctx.fillRect(-5, -2 + trot, 3, 3);
+    ctx.fillRect(3, -2 - trot, 3, 3);
 
     ctx.restore();
 
-    // Name badge above Appu
-    const badgeY = ay - 24;
-    drawPixelPill('Appu 🐕', ax, badgeY, '#164e63', '#ecfeff', '#06b6d4');
+    // Name badge above Luka (hidden while he trots at your heels)
+    appu.tagText = 'Luka 🐕';
+    const petDist = appu.follow ? Infinity : Math.hypot(player.x - appu.x, player.y - appu.y);
+    drawNameTag(appu, petDist, ax, ay - 24, '#164e63', '#ecfeff', '#06b6d4');
 
     // Thought Bubble
     if (appu.bubble) {
@@ -2887,25 +4276,7 @@
     // 4. Props from Town Assets Sprite Sheet (512x512; source rects are in that space)
     const assetsSprite = getTransparentSprite(townAssetsImg);
     if (assetsSprite) {
-      // 4a. Campus Directional Signpost at Central Plaza Crossroads
-      drawShadow(428, 238, 10, 4);
-      ctx.drawImage(assetsSprite, 195, 165, 115, 170, 417, 204, 22, 34);
-
-      // 4b. AI Server Rack outside Observatory
-      drawShadow(936, 196, 11, 4);
-      ctx.drawImage(assetsSprite, 325, 27, 130, 200, 925, 164, 22, 34);
-      // Blinking rack LEDs
-      const now = Date.now();
-      const led1 = Math.sin(now * 0.01) > 0;
-      const led2 = Math.cos(now * 0.012) > 0;
-      ctx.fillStyle = led1 ? '#22c55e' : '#15803d';
-      ctx.fillRect(929, 172, 3, 2);
-      ctx.fillStyle = led2 ? '#38bdf8' : '#0369a1';
-      ctx.fillRect(929, 177, 3, 2);
-
-      // 4c. Developer Dual-Monitor Desk at Vivek's terrace / front garden
-      drawShadow(88, 86, 14, 5);
-      ctx.drawImage(assetsSprite, 290, 295, 195, 180, 72, 60, 32, 28);
+      // Signpost, server rack and desk are depth-sorted props (see PROPS)
     }
 
     // 5. Central Plaza Compass Badge when player approaches
@@ -3051,9 +4422,10 @@
       const beatCount = Math.floor(step * 0.09);
       currentFacing = (beatCount % 2 === 0) ? 'right' : 'left';
     } else if (player.moving) {
-      bobY = Math.sin(player.stepTimer * 10) * 2.5;
+      // Stepped 16-bit bounce: up one pixel on each stride frame, never a smooth wobble
+      bobY = walkFrame(player.stepTimer) === 1 ? 0 : -1.5;
     } else if (player.actionState === 'none') {
-      bobY = Math.sin(Date.now() * 0.003) * 0.8;
+      bobY = Math.floor(Date.now() / 600) % 2 ? -0.75 : 0; // two-frame idle breathe
     }
 
     const renderY = py - player.h - player.jumpZ + bobY;
@@ -3064,12 +4436,14 @@
     if (player.actionState === 'dance') {
       ctx.rotate(danceSway);
       ctx.scale(danceScaleX, danceScaleY);
-    } else if (player.moving) {
-      const strideTilt = (player.facing === 'left' ? -1 : 1) * 0.04;
-      ctx.rotate(strideTilt);
     }
 
-    if (playerSprite.complete && playerSprite.naturalWidth > 0) {
+    if (playerSheet.sheet) {
+      // Real walk-cycle frames; jumping holds a stride pose
+      const row = SHEET_DIR_ROW[currentFacing] ?? 0;
+      const col = !player.isGrounded ? 0 : (player.moving ? walkFrame(player.stepTimer) : 1);
+      drawSheetFrame(playerSheet.sheet, row, col, 0, player.h / 2, player.h);
+    } else if (playerSprite.complete && playerSprite.naturalWidth > 0) {
       if (currentFacing === 'left') {
         ctx.scale(-1, 1);
       }
@@ -3198,7 +4572,8 @@
       const nametagY = renderY - 10;
       const tagBg = player.caffeineTimer > 0 ? '#b88619' : 'rgba(25, 45, 48, 0.85)';
       const tagBorder = player.caffeineTimer > 0 ? '#ffea75' : '#f5c542';
-      const tagText = player.caffeineTimer > 0 ? 'VIVEK ⚡' : 'VIVEK';
+      const first = ((window.SITE_CONTENT && window.SITE_CONTENT.profile && window.SITE_CONTENT.profile.name) || 'Vivek').split(' ')[0].toUpperCase();
+      const tagText = player.caffeineTimer > 0 ? `${first} ⚡` : first;
       drawPixelPill(tagText, px, nametagY, tagBg, '#fff4cf', tagBorder);
     }
 
@@ -3446,6 +4821,8 @@
         closeDialog();
         return;
       }
+      if (Dialogue.isOpen()) { Dialogue.close(); return; }
+      if (finaleOpen()) { closeFinale(); return; }
     }
 
     // Do not trigger game shortcuts if user is typing in an input field!
@@ -3460,6 +4837,13 @@
       return;
     }
 
+    // Whole-town map view (M)
+    if (key === 'm' && currentRoute === 'town') {
+      e.preventDefault();
+      toggleOverview();
+      return;
+    }
+
     // Collision hitboxes toggle key shortcut (P)
     if (key === 'p') {
       e.preventDefault();
@@ -3470,12 +4854,12 @@
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'Shift'].includes(key)) {
       if (currentRoute === 'town' && !dialog.classList.contains('open')) {
         e.preventDefault();
-        targetDestination = null;
+        cancelWalk();
       }
       keys.add(key);
     }
 
-    if (currentRoute === 'town' && !dialog.classList.contains('open')) {
+    if (currentRoute === 'town' && !dialog.classList.contains('open') && !Dialogue.isOpen()) {
       if (key === ' ' || key === 'j') {
         e.preventDefault();
         triggerJump();
@@ -3520,63 +4904,31 @@
     if (document.hidden) keys.clear();
   });
 
-  // Canvas Click / Tap: Walk or enter building or trigger interactive landmark
+  // Canvas click / tap: talk, use, or walk there (through the camera)
   canvas.addEventListener('click', e => {
     initAudio();
     if (dialog.classList.contains('open') || isBulletinOpen()) return;
+    if (Dialogue.isOpen()) { Dialogue.advance(); return; }
+    if (finaleOpen()) return;
+    const w = screenToWorld(e.clientX, e.clientY);
 
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const clickX = (e.clientX - rect.left) * scaleX;
-    const clickY = (e.clientY - rect.top) * scaleY;
-
-    // 1. Noticeboard click
-    if (Math.hypot(clickX - 835, clickY - 445) < 36) {
-      if (Math.hypot(player.x - 835, player.y - 445) < 55) {
-        openCampusBulletin();
+    // Something interactive under the pointer: use it, walking over first if needed
+    for (const it of interactables) {
+      if (!it.hit || !it.hit(w.x, w.y)) continue;
+      const p = it.pos();
+      if (Math.hypot(player.x - p.x, player.y - p.y) < it.r) {
+        cancelWalk();
+        it.use();
+      } else if (it.kind === 'door') {
+        walkToBuilding(it.building.id);
       } else {
-        targetDestination = { x: 805, y: 445, onArrival: () => openCampusBulletin() };
-        spawnDestinationRipple(805, 445);
-        showToast('Walking to Campus Bulletin Board...');
+        const a = it.approach();
+        walkTo(a.x, a.y, it.use);
       }
       return;
     }
 
-    // 2. Appu Mascot click
-    if (Math.hypot(clickX - appu.x, clickY - appu.y) < 34) {
-      if (Math.hypot(player.x - appu.x, player.y - appu.y) < 52) {
-        petAppu();
-      } else {
-        targetDestination = { x: appu.x + 28, y: appu.y, onArrival: () => petAppu() };
-        spawnDestinationRipple(appu.x + 28, appu.y);
-        showToast('Running to pet Appu the puppy...');
-      }
-      return;
-    }
-
-
-
-    // 5. Buildings click
-    for (const b of BUILDINGS) {
-      if (
-        clickX >= b.box.x &&
-        clickX <= b.box.x + b.box.w &&
-        clickY >= b.box.y &&
-        clickY <= b.box.y + b.box.h
-      ) {
-        walkToBuilding(b.id);
-        return;
-      }
-    }
-
-    targetDestination = {
-      x: Math.max(25, Math.min(935, clickX)),
-      y: Math.max(45, Math.min(515, clickY)),
-      onArrival: null
-    };
-    spawnDestinationRipple(targetDestination.x, targetDestination.y);
-    sfxClick();
+    if (walkTo(w.x, w.y)) sfxClick();
   });
 
   // Action Dock Buttons
@@ -3600,75 +4952,92 @@
   dialogPrevBtn.addEventListener('click', () => cycleBuilding(-1));
   dialogNextBtn.addEventListener('click', () => cycleBuilding(1));
 
-  // Virtual Mobile Touch Controls
-  const dpadButtons = document.querySelectorAll('.dpad-btn');
-  const dpadMap = {
-    up: 'ArrowUp',
-    down: 'ArrowDown',
-    left: 'ArrowLeft',
-    right: 'ArrowRight'
-  };
+  // --- Touch control deck (phones) ---
+  // D-pad: one touch surface, 8 directions; slide the thumb freely. Pushing to the
+  // outer ring runs. A = talk / enter, B = jump, START = tour, SELECT = map.
+  const dpad = document.querySelector('#touch-dpad');
+  const DPAD_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift'];
+  let dpadPointer = null;
 
-  dpadButtons.forEach(btn => {
-    const move = btn.dataset.move;
-    if (!move) return;
+  function dpadRelease() {
+    dpadPointer = null;
+    DPAD_KEYS.forEach(k => keys.delete(k));
+    if (dpad) dpad.querySelectorAll('.dpad-btn').forEach(btn => btn.classList.remove('active'));
+  }
 
-    const startMove = e => {
+  function dpadSteer(e) {
+    const r = dpad.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    const len = Math.hypot(dx, dy);
+    const radius = r.width / 2;
+    const dirs = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    if (len > radius * 0.16) {
+      const nx = dx / len, ny = dy / len;
+      dirs.ArrowUp = ny < -0.38;
+      dirs.ArrowDown = ny > 0.38;
+      dirs.ArrowLeft = nx < -0.38;
+      dirs.ArrowRight = nx > 0.38;
+    }
+    for (const [k, on] of Object.entries(dirs)) on ? keys.add(k) : keys.delete(k);
+    len > radius * 0.82 ? keys.add('Shift') : keys.delete('Shift');
+    const arm = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+    dpad.querySelectorAll('.dpad-btn').forEach(btn => {
+      const key = Object.keys(arm).find(k => arm[k] === btn.dataset.move);
+      btn.classList.toggle('active', !!dirs[key]);
+    });
+  }
+
+  if (dpad) {
+    dpad.addEventListener('pointerdown', e => {
       e.preventDefault();
       initAudio();
-      targetDestination = null;
+      cancelWalk();
+      dpadPointer = e.pointerId;
+      try { dpad.setPointerCapture(e.pointerId); } catch (_) { /* older browsers */ }
+      dpadSteer(e);
+    });
+    dpad.addEventListener('pointermove', e => {
+      if (e.pointerId === dpadPointer) dpadSteer(e);
+    });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => {
+      dpad.addEventListener(type, e => { if (e.pointerId === dpadPointer) dpadRelease(); });
+    });
+    dpad.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  window.addEventListener('blur', dpadRelease);
+
+  // Buttons react on press (not on release) so they feel immediate
+  const pressButton = (sel, fn) => {
+    const btn = document.querySelector(sel);
+    if (!btn) return;
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
       btn.classList.add('active');
-      keys.add(dpadMap[move]);
-    };
+      fn();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => btn.addEventListener(t, () => btn.classList.remove('active')));
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+  };
+  pressButton('#touch-enter-btn', () => toggleInteract());
+  pressButton('#touch-jump-btn', () => triggerJump());
+  pressButton('#deck-map-btn', () => toggleOverview());
+  pressButton('#deck-tour-btn', () => { const t = document.querySelector('#gx-tour-btn'); if (t) t.click(); });
 
-    const endMove = e => {
-      e.preventDefault();
-      btn.classList.remove('active');
-      keys.delete(dpadMap[move]);
-    };
-
-    btn.addEventListener('touchstart', startMove, { passive: false });
-    btn.addEventListener('touchend', endMove, { passive: false });
-    btn.addEventListener('mousedown', startMove);
-    btn.addEventListener('mouseup', endMove);
-    btn.addEventListener('mouseleave', endMove);
+  // Hover (mouse): show a townsperson's / the pet's name tag
+  canvas.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse') return;
+    const w = screenToWorld(e.clientX, e.clientY);
+    hoverTarget = null;
+    for (const it of interactables) {
+      if ((it.kind === 'crew' || it.id === 'appu') && it.hit && it.hit(w.x, w.y)) {
+        hoverTarget = it.member || appu;
+        break;
+      }
+    }
   });
-
-  const touchEnterBtn = document.querySelector('#touch-enter-btn');
-  const touchRunBtn = document.querySelector('#touch-run-btn');
-  const touchJumpBtn = document.querySelector('#touch-jump-btn');
-
-  if (touchEnterBtn) {
-    touchEnterBtn.addEventListener('click', () => {
-      initAudio();
-      toggleInteract();
-    });
-  }
-
-  if (touchJumpBtn) {
-    touchJumpBtn.addEventListener('click', () => {
-      initAudio();
-      triggerJump();
-    });
-  }
-
-  if (touchRunBtn) {
-    const startRun = e => {
-      e.preventDefault();
-      initAudio();
-      touchRunBtn.classList.add('active');
-      keys.add('Shift');
-    };
-    const endRun = e => {
-      e.preventDefault();
-      touchRunBtn.classList.remove('active');
-      keys.delete('Shift');
-    };
-    touchRunBtn.addEventListener('touchstart', startRun, { passive: false });
-    touchRunBtn.addEventListener('touchend', endRun, { passive: false });
-    touchRunBtn.addEventListener('mousedown', startRun);
-    touchRunBtn.addEventListener('mouseup', endRun);
-  }
+  canvas.addEventListener('pointerleave', () => { hoverTarget = null; });
 
   // Copy Email to Clipboard
   if (copyEmailBtn && emailTextEl) {
@@ -3866,6 +5235,14 @@
 
   canvas.addEventListener('click', () => canvas.focus());
 
+  // Build the world: walkable grid, crew, skill chips, interactables
+  buildNavGrid();
+  buildCrew();
+  buildChips();
+  buildInteractables();
+  Quests.setTotals({ chips: chips.length, crew: crew.length });
+  resizeCanvas();
+
   // Restore quest progress (visited buildings) before the counters render
   Quests.restoreInto(visitedBuildings);
   Quests.render();
@@ -3882,7 +5259,7 @@
       const next = Quests.nextBuilding();
       if (next) {
         walkToBuilding(next.id);
-        canvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        bringGameIntoView();
       } else {
         showToast('🏆 Every building explored. The Career Observatory has the full resume.');
       }

@@ -1848,16 +1848,16 @@ body[data-skin="cyber"] .console-power-led {
   background: #080d12 !important;
 }
 
-:fullscreen .game-screen canvas,
-#console-wrapper:fullscreen .game-screen canvas,
-.console-wrapper.is-fullscreen .game-screen canvas {
-  width: auto !important;
+/* Fullscreen: the game canvas fills the screen (the camera adapts to any shape) */
+:fullscreen .game-screen canvas#game,
+#console-wrapper:fullscreen .game-screen canvas#game,
+.console-wrapper.is-fullscreen .game-screen canvas#game {
+  width: 100% !important;
   height: 100% !important;
-  max-height: calc(100vh - 110px) !important;
-  max-width: calc((100vh - 110px) * (16 / 9)) !important;
-  aspect-ratio: 16 / 9 !important;
-  object-fit: contain !important;
-  box-shadow: 0 0 50px rgba(0, 0, 0, 0.9) !important;
+  max-width: none !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
+  box-shadow: none !important;
 }
 
 :fullscreen .console-bezel-bottom,
@@ -6522,4 +6522,851 @@ html[data-mode="game"] .sh-role {
   .gx-settings-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ==========================================================================
+   GAME 2.0: camera HUD, minimap, dialogue box, finale
+   ========================================================================== */
+
+.game-screen canvas {
+  cursor: pointer;
+}
+
+.gx-hud-right {
+  position: absolute;
+  top: 56px;
+  right: 12px;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.gx-counters {
+  display: flex;
+  gap: 6px;
+}
+
+.gx-counter {
+  padding: 4px 8px;
+  font-family: var(--font-retro);
+  font-size: 0.5rem;
+  color: #e0f2fe;
+  background: rgba(19, 34, 38, 0.86);
+  border: 2px solid #38bdf8;
+  border-radius: 4px;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.gx-counter b {
+  font-weight: 400;
+  color: #fff;
+}
+
+.gx-minimap {
+  width: 168px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border: 2px solid var(--gold-primary);
+  border-radius: 4px;
+  background: #192b23;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.55);
+  image-rendering: pixelated;
+}
+
+.gx-map-btn {
+  pointer-events: auto;
+  padding: 5px 9px;
+  font-family: var(--font-retro);
+  font-size: 0.5rem;
+  color: #fff8e1;
+  background: rgba(19, 34, 38, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.gx-map-btn.active,
+.gx-map-btn:hover {
+  color: var(--wood-dark);
+  background: var(--gold-primary);
+  border-color: var(--gold-light);
+}
+
+/* Typewriter conversation box */
+.gx-dialogue {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 20;
+  width: min(640px, calc(100% - 24px));
+  transform: translateX(-50%);
+  padding: 18px 20px 16px;
+  color: #fff8e1;
+  background: rgba(19, 34, 38, 0.95);
+  border: 3px solid var(--gold-primary);
+  border-radius: 6px;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  animation: gxDialogueIn 0.18s ease-out;
+}
+
+.gx-dialogue[hidden] {
+  display: none;
+}
+
+@keyframes gxDialogueIn {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+}
+
+.gx-dialogue-name {
+  position: absolute;
+  top: -13px;
+  left: 14px;
+  padding: 4px 10px;
+  font-family: var(--font-retro);
+  font-size: 0.55rem;
+  color: #221612;
+  border: 2px solid #221612;
+  border-radius: 3px;
+}
+
+.gx-dialogue-text {
+  min-height: 2.9em;
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.gx-dialogue-next {
+  position: absolute;
+  right: 12px;
+  bottom: 6px;
+  font-size: 0.7rem;
+  color: var(--gold-light);
+  opacity: 0;
+}
+
+.gx-dialogue.ready .gx-dialogue-next {
+  opacity: 1;
+  animation: gxNextBlink 0.8s steps(2) infinite;
+}
+
+.gx-dialogue.ready.last .gx-dialogue-next::before {
+  content: '✕ ';
+}
+
+@keyframes gxNextBlink {
+  50% { opacity: 0; }
+}
+
+/* Finale */
+.gx-finale {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(10, 18, 20, 0.62);
+  animation: gxDialogueIn 0.25s ease-out;
+}
+
+.gx-finale[hidden] {
+  display: none;
+}
+
+.gx-finale-card {
+  max-width: 460px;
+  padding: 26px 26px 22px;
+  text-align: center;
+  color: #fff8e1;
+  background: radial-gradient(120% 140% at 0% 0%, #2e4d54 0%, #1b2e33 60%, #132226 100%);
+  border: 3px solid var(--gold-primary);
+  border-radius: 8px;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.55);
+}
+
+.gx-finale-badge {
+  font-family: var(--font-retro);
+  font-size: 0.6rem;
+  color: var(--gold-light);
+}
+
+.gx-finale-title {
+  margin: 12px 0 8px;
+  font-size: 1.35rem;
+  color: #fff;
+}
+
+.gx-finale-text {
+  margin: 0 0 18px;
+  color: #b9d0d4;
+}
+
+.gx-finale-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .gx-hud-right {
+    top: 46px;
+    right: 8px;
+  }
+  .gx-minimap {
+    width: 104px;
+  }
+  .gx-counter,
+  .gx-map-btn {
+    font-size: 0.42rem;
+  }
+  .gx-dialogue {
+    bottom: 96px; /* above the touch controls */
+    padding: 14px 14px 12px;
+  }
+  .gx-dialogue-text {
+    font-size: 0.86rem;
+  }
+}
+
+/* Long names in the header shrink instead of pushing the page wider */
+.site-header .sh-brand {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.sh-brand-text {
+  min-width: 0;
+}
+
+.sh-name {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .site-header .brand-rank-tag {
+    display: none;
+  }
+  .sh-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+}
+
+/* The canvas is rendered at the screen's own resolution: no extra pixel scaling */
+.game-screen canvas#game {
+  image-rendering: auto;
+}
+
+/* ==========================================================================
+   MOBILE REBUILD (phones). Game: full-screen portrait view + Game Boy deck.
+   Resume: compact header. Drawer: resume sections or town places by mode.
+   ========================================================================== */
+
+/* Drawer (all widths where it is used) */
+.m-block-title {
+  display: block;
+  margin: 2px 2px -6px;
+  font-family: 'Inter', var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.m-pro-block {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.m-pro-nav {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #e4e0d8;
+}
+
+.m-pro-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 4px;
+  font-family: 'Inter', var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2933;
+  text-decoration: none;
+  border-bottom: 1px solid #e4e0d8;
+}
+
+.m-pro-link::after {
+  content: '→';
+  color: #1f6f66;
+}
+
+.m-pro-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.m-pro-btn {
+  display: block;
+  padding: 12px;
+  font-family: 'Inter', var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  color: #1f2933;
+  background: #fff;
+  border: 1px solid #e4e0d8;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.m-pro-btn-primary {
+  color: #fff;
+  background: #1f6f66;
+  border-color: #1f6f66;
+}
+
+html[data-mode="pro"] .mobile-nav-drawer {
+  background: #fbfaf7;
+  border-bottom: 1px solid #e4e0d8;
+}
+
+html[data-mode="pro"] .mobile-search-btn {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .m-search-kbd,
+  .palette-btn-kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --deck-h: 150px;
+    --bezel-h: 38px;
+    --header-h: 56px;
+  }
+
+  /* ---- Header ---- */
+  .site-header .sh-inner {
+    height: var(--header-h);
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .site-header .sh-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .site-header .sh-brand {
+    gap: 9px;
+  }
+  .sh-name {
+    font-size: 0.95rem;
+  }
+  .site-header .sh-mode-btn {
+    padding: 7px 11px;
+  }
+  .sh-mode-extra {
+    display: none;
+  }
+  .site-header .sh-right {
+    gap: 8px;
+  }
+
+  /* ---- Drawer: compact town grid ---- */
+  .mobile-nav-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px;
+  }
+  .mobile-nav-card {
+    padding: 10px 10px;
+    gap: 8px;
+  }
+  .m-card-meta small {
+    display: none;
+  }
+  .m-card-meta strong {
+    font-size: 0.86rem;
+  }
+  .mobile-search-btn {
+    padding: 11px 14px;
+  }
+
+  /* ---- Game page: the game is the first screen ---- */
+  html[data-mode="game"] .app-viewport {
+    padding: 0 0 32px;
+  }
+  .gx-shell {
+    gap: 14px;
+  }
+  .gx-grid {
+    order: 1;
+    gap: 14px;
+  }
+  .gx-hero {
+    order: 2;
+    margin: 0 10px;
+    padding: 16px;
+  }
+  .gx-stage {
+    gap: 14px;
+  }
+  .gx-side,
+  .gx-settings {
+    margin: 0 10px;
+  }
+  .gx-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .gx-side .player-id-card {
+    display: none; /* same facts are in the header and the hero */
+  }
+
+  /* Console: edge to edge */
+  .console-wrapper {
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .console-bezel-top {
+    flex-wrap: nowrap;
+    min-height: var(--bezel-h);
+    padding: 6px 10px;
+    gap: 8px;
+  }
+  .console-bezel-top .bezel-left {
+    display: none;
+  }
+  .console-bezel-top .bezel-center {
+    order: 0;
+    flex: 1 1 auto;
+    flex-basis: auto;
+    min-width: 0;
+  }
+  .location-chip {
+    font-size: 0.66rem;
+  }
+  .quest-chip {
+    font-size: 0.6rem;
+    padding: 3px 7px;
+  }
+
+  /* Tall portrait view of the town */
+  .game-screen canvas#game {
+    aspect-ratio: auto;
+    height: clamp(300px, calc(100vh - var(--header-h) - var(--bezel-h) - var(--deck-h)), 640px);
+    height: clamp(300px, calc(100svh - var(--header-h) - var(--bezel-h) - var(--deck-h)), 640px);
+  }
+
+  /* In-canvas HUD */
+  .hud-overlay {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+  }
+  .hud-status {
+    max-width: calc(100% - 150px);
+  }
+  .gx-hud-right {
+    top: 8px;
+    right: 8px;
+    gap: 5px;
+  }
+  .gx-map-btn {
+    display: none; /* MAP lives on the deck */
+  }
+  .gx-minimap {
+    width: 96px;
+  }
+  .gx-counter {
+    font-size: 0.42rem;
+    padding: 3px 6px;
+  }
+
+  /* Conversation box sits above the deck */
+  .gx-dialogue {
+    bottom: calc(var(--deck-h) + 10px);
+  }
+
+  /* ---- Control deck (Game Boy style) under the map ---- */
+  .touch-controls,
+  .game-dialog.open ~ .touch-controls {
+    position: relative;
+    inset: auto;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    height: var(--deck-h);
+    padding: 10px 12px;
+    background: linear-gradient(180deg, #1b2e33 0%, #132226 100%);
+    border-top: 3px solid var(--console-border);
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .dpad {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, 38px);
+    grid-template-rows: repeat(3, 38px);
+    gap: 0;
+    padding: 4px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 70%, transparent 71%);
+    border: 0;
+    border-radius: 50%;
+    backdrop-filter: none;
+    touch-action: none;
+    cursor: pointer;
+  }
+  .dpad-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    color: #9fb8bd;
+    background: #0f1b1e;
+    border: 0;
+    border-radius: 0;
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.45);
+    pointer-events: none; /* the whole pad is one touch surface */
+  }
+  .dpad-up { border-radius: 8px 8px 0 0; }
+  .dpad-down { border-radius: 0 0 8px 8px; }
+  .dpad-left { border-radius: 8px 0 0 8px; }
+  .dpad-right { border-radius: 0 8px 8px 0; }
+  .dpad-center {
+    background: #0f1b1e;
+    border-radius: 0;
+  }
+  .dpad-btn.active {
+    color: var(--wood-dark);
+    background: var(--gold-primary);
+    box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.25);
+    transform: none;
+  }
+
+  .deck-center {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    align-self: end;
+    padding-bottom: 10px;
+  }
+  .deck-pill {
+    padding: 6px 8px;
+    font-family: var(--font-retro);
+    font-size: 0.4rem;
+    letter-spacing: 0.5px;
+    color: #d9ecef;
+    background: #2e4d54;
+    border: 2px solid #0d171a;
+    border-radius: 999px;
+    box-shadow: 0 2px 0 #0d171a;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .deck-pill.active {
+    transform: translateY(2px);
+    box-shadow: none;
+  }
+
+  .touch-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 2px 0 0;
+  }
+  .touch-btn {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    font-family: var(--font-retro);
+    font-size: 0.95rem;
+    border: 3px solid #0d171a;
+    border-radius: 50%;
+    box-shadow: 0 4px 0 #0d171a;
+    touch-action: manipulation;
+  }
+  .touch-btn small {
+    position: absolute;
+    left: 50%;
+    bottom: -19px;
+    transform: translateX(-50%);
+    display: block;
+    font-size: 0.42rem;
+    letter-spacing: 0.5px;
+    color: #9fb8bd;
+    opacity: 1;
+  }
+  .action-a {
+    margin-top: -26px; /* classic diagonal A / B layout */
+    color: var(--wood-dark);
+    background: var(--gold-primary);
+  }
+  .action-b {
+    margin-top: 18px;
+    color: #fff;
+    background: var(--brick);
+  }
+  .touch-btn.active {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 #0d171a;
+  }
+
+  /* Emotes: one swipeable row, no keyboard hints */
+  .console-bezel-bottom {
+    padding: 8px 10px 10px;
+  }
+  .player-actions-dock {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 2px;
+    border-bottom: 0;
+    scrollbar-width: none;
+  }
+  .player-actions-dock::-webkit-scrollbar {
+    display: none;
+  }
+  .actions-dock-label,
+  .action-dock-btn kbd {
+    display: none;
+  }
+  .action-dock-btn {
+    flex: 0 0 auto;
+    padding: 7px 11px;
+  }
+
+  /* Hero (below the game) */
+  .gx-hero .hero-pill {
+    font-size: 0.6rem;
+  }
+  .gx-hero .game-headline {
+    font-size: 1.4rem;
+  }
+  .gx-hero .hero-tagline {
+    font-size: 0.9rem;
+  }
+  .gx-cta-row {
+    width: 100%;
+  }
+  .gx-cta {
+    flex: 1;
+    text-align: center;
+  }
+
+  /* Town map: two compact columns */
+  .gx-side .landmarks-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .gx-side .lm-desc {
+    display: none;
+  }
+  .gx-side .landmark-nav-btn {
+    padding: 9px 8px;
+    gap: 6px;
+  }
+  .gx-side .landmark-nav-btn:hover {
+    transform: none;
+  }
+  .gx-side .landmark-nav-btn.visited::after,
+  .gx-side .landmark-nav-btn.gx-next::after {
+    top: 4px;
+    right: 4px;
+    transform: none;
+  }
+
+  /* ---- Resume ---- */
+  .rs-actions {
+    width: 100%;
+  }
+  .resume .rs-btn {
+    flex: 1 1 auto;
+  }
+}
+
+/* Phones held sideways: map fills the screen, controls float over its corners */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .site-header .sh-inner {
+    height: 48px;
+  }
+  .gx-hero .quick-hints {
+    display: none;
+  }
+  .game-screen canvas#game {
+    aspect-ratio: auto;
+    height: calc(100vh - 48px - 38px);
+    height: calc(100svh - 48px - 38px);
+  }
+  .touch-controls {
+    display: flex;
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    justify-content: space-between;
+    align-items: flex-end;
+    pointer-events: none;
+  }
+  .touch-controls > * {
+    pointer-events: auto;
+  }
+  .deck-center {
+    display: none;
+  }
+  .dpad {
+    opacity: 0.85;
+  }
+  .gx-map-btn {
+    display: inline-block;
+  }
+}
+
+/* Minimap size (beats the generic ".game-screen canvas { width: 100% }" rule) */
+.game-screen canvas.gx-minimap {
+  width: 168px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+
+@media (max-width: 760px) {
+  .game-screen canvas.gx-minimap {
+    width: 96px;
+  }
+}
+
+/* Touch: keyboard-only hints off */
+@media (pointer: coarse) {
+  .hud-speed,
+  .dialog-hint {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* Toasts: just above the control deck, never over it; at most two at once */
+  .toast-container {
+    top: auto;
+    bottom: calc(var(--deck-h) + 14px + env(safe-area-inset-bottom));
+    left: 10px;
+    right: 10px;
+    align-items: center;
+    gap: 6px;
+  }
+  .toast {
+    max-width: 100%;
+    padding: 8px 12px;
+    font-size: 0.5rem;
+    line-height: 1.6;
+  }
+  .toast:nth-last-child(n + 3) {
+    display: none;
+  }
+
+  /* Building / notice-board pop-ups become a bottom sheet */
+  .game-dialog {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .game-dialog .dialog-box {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100% - 10px);
+    border-width: 3px 0 0;
+    border-radius: 16px 16px 0 0;
+  }
+  .game-dialog .dialog-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 14px 10px;
+  }
+  .game-dialog .dialog-title-group {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .game-dialog .dialog-heading {
+    font-size: 1.05rem;
+    line-height: 1.25;
+  }
+  .game-dialog .dialog-nav-actions {
+    flex: 1 1 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .game-dialog .dialog-page-btn {
+    flex: 1 1 auto;
+    padding: 7px 10px;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+  .game-dialog .dialog-nav-btn,
+  .game-dialog .dialog-close-btn {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    font-size: 0.72rem;
+  }
+  .game-dialog .dialog-footer {
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+  .game-dialog .btn-dialog-exit {
+    width: 100%;
+  }
+}
+
+/* Phones held sideways: game first here too */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .gx-hero {
+    order: 2;
+  }
+  .gx-grid {
+    order: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .gx-cta {
+    font-size: 0.52rem;
+    padding: 10px 12px;
+  }
+}
+
+/* Performance: no live backdrop blur over the moving game (the pills are opaque enough) */
+.game-screen .hud-pill,
+.game-screen .gx-counter,
+.game-screen .touch-controls *,
+.game-screen .dpad,
+.game-screen .game-dialog {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+#console-wrapper:fullscreen .game-screen,
+.console-wrapper.is-fullscreen .game-screen {
+  position: relative;
+  min-height: 0;
 }

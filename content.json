@@ -270,22 +270,21 @@
     "site-topbar.small-7": "Email and profiles",
     "site-topbar.strong-8": "Resume",
     "site-topbar.small-8": "One-page professional view",
-    "site-topbar.span": "850 EXP",
     "view-town.hero-pill": "<span class=\"pulse-dot\"></span> BSc Computer Science · Rajagiri College of Social Sciences · Open to internships",
     "view-town.game-headline": "{name} — <em class=\"game-headline-highlight\">Software Developer</em>",
     "view-town.hero-tagline": "Python, full-stack web and local LLM projects. Walk into a building to see the work behind it, or switch to the Resume view.",
     "view-town.hint-chip": "<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move",
     "view-town.hint-chip-2": "<kbd>Space</kbd> Jump",
-    "view-town.hint-chip-3": "<kbd>C</kbd> Speed boost",
-    "view-town.hint-chip-4": "<kbd>E</kbd> Enter building",
+    "view-town.hint-chip-3": "<kbd>M</kbd> Map",
+    "view-town.hint-chip-4": "<kbd>E</kbd> Talk / enter",
     "view-town.player-tag-class": "SOFTWARE DEVELOPER",
     "view-town.player-id-name": "VIVEK",
     "view-town.player-id-sub": "BSc Computer Science · Kerala, India",
     "view-town.s-text": "BSc Computer Science, Year 3",
     "view-town.s-text-2": "Python, web apps, local LLMs",
     "view-town.s-text-3": "Kalamassery, Kochi (IST)",
-    "view-town.h4": "TOWN DIRECTORY",
-    "view-town.landmark-count-badge": "7 buildings",
+    "view-town.h4": "TOWN MAP",
+    "view-town.landmark-count-badge": "Tap to walk",
     "view-town.lm-name": "Vivek's House",
     "view-town.lm-desc": "Background and education",
     "view-town.lm-name-3": "Projects Workshop",
@@ -328,12 +327,6 @@
     "view-town.p-4": "{name} is looking for software development and AI engineering internships and entry-level roles. Reach out by email.",
     "view-town.span-5": "Contact {name}",
     "view-town.dialog-hint-2": "<kbd>Esc</kbd> or ✕ to close",
-    "view-town.span-6": "JUMP",
-    "view-town.small": "Space",
-    "view-town.span-7": "RUN",
-    "view-town.small-2": "Shift",
-    "view-town.span-8": "ENTER",
-    "view-town.small-3": "E",
     "view-town.actions-dock-label": "ACTIONS:",
     "view-town.btn-name": "Jump",
     "view-town.kbd": "Space",
@@ -345,14 +338,6 @@
     "view-town.kbd-4": "H",
     "view-town.btn-name-5": "Dance",
     "view-town.kbd-5": "Z",
-    "view-town.fast-travel-label": "FAST TRAVEL:",
-    "view-town.travel-btn": "🏠 Vivek's House",
-    "view-town.travel-btn-3": "🚀 Projects",
-    "view-town.travel-btn-4": "🤖 AI Lab",
-    "view-town.travel-btn-5": "📬 Contact",
-    "view-town.travel-btn-6": "🔭 Career",
-    "view-town.travel-btn-7": "☕ Kaapi Cafe",
-    "view-town.travel-btn-8": "🕹️ Skills",
     "view-town.h4-2": "KERALA ATMOSPHERE",
     "view-town.wing-card-sub": "Change the time of day",
     "view-town.w-label": "Sunny",
@@ -399,16 +384,12 @@
     "page-about.stats-title": "✦ FOCUS AREAS",
     "page-about.stats-class-pill": "WHAT I WORK ON",
     "page-about.stat-label": "<span class=\"stat-icon\">💻</span> Full-stack web",
-    "page-about.stat-score": "95%",
     "page-about.stat-caption": "Python, Flask, JavaScript, SQL",
     "page-about.stat-label-2": "<span class=\"stat-icon\">🤖</span> Local LLMs",
-    "page-about.stat-score-2": "92%",
     "page-about.stat-caption-2": "Ollama, tool calling, RAG",
     "page-about.stat-label-3": "<span class=\"stat-icon\">🧪</span> Machine learning",
-    "page-about.stat-score-3": "98%",
     "page-about.stat-caption-3": "Scikit-learn, Pandas, NumPy",
     "page-about.stat-label-4": "<span class=\"stat-icon\">⚙️</span> Automation",
-    "page-about.stat-score-4": "100%",
     "page-about.stat-caption-4": "Playwright, scraping, scripting",
     "page-about.h3": "Education",
     "page-about.p": "<strong>BSc Computer Science</strong>, <strong>Rajagiri College of Social Sciences, Kalamassery</strong> (2024 — present, Year 3). Coursework: data structures, algorithm analysis, database systems, operating systems, web systems and machine learning.",
@@ -686,7 +667,34 @@
     "view-town.skin-btn@title": "Classic GameBoy Slate",
     "view-town.skin-btn-2@title": "Kerala Teak Woodgrain",
     "view-town.skin-btn-3@title": "Cyberpunk Matrix Neon",
-    "page-about.dossier-avatar-img@alt": "{name}, pixel-art character"
+    "page-about.dossier-avatar-img@alt": "{name}, pixel-art character",
+    "view-town.gx-map-btn": "🗺 Map",
+    "view-town.gx-finale-badge": "★ TOWN COMPLETE ★",
+    "view-town.gx-finale-title": "You explored all of Portfolio Town",
+    "view-town.gx-finale-text": "Thanks for playing. The one-page resume has everything in one place, and the Contact Center is open for internship conversations.",
+    "view-town.gx-finale-resume": "Open resume",
+    "view-town.gx-finale-contact": "Contact",
+    "view-town.gx-finale-close": "Keep exploring",
+    "view-town.gx-quest-chips": "Collect the skill chips",
+    "view-town.gx-quest-crew": "Talk to the town crew",
+    "view-town.gx-quest-bugs": "Jump on bugs to fix them",
+    "view-town.gx-quest-friend": "Make friends with Luka",
+    "view-town.gx-tour-btn": "▶ Start the tour",
+    "view-town.gx-resume-btn": "Open resume",
+    "view-town.gx-quests-title": "Quest log",
+    "view-town.gx-quest-explore": "Visit every building",
+    "view-town.gx-quest-bulletin": "Read the notice board in the south plaza",
+    "view-town.gx-quest-coffee": "Drink a coffee (press C)",
+    "view-town.gx-quest-resume": "Open the resume from the Career Observatory",
+    "view-town.gx-settings-title": "⚙ Settings · weather, music & display",
+    "site-topbar.m-pro-title": "Resume sections",
+    "site-topbar.m-pro-pdf": "Download PDF",
+    "site-topbar.m-pro-play": "Play the portfolio game ▶",
+    "site-topbar.m-game-title": "Go to",
+    "view-town.deck-map": "MAP",
+    "view-town.deck-tour": "TOUR",
+    "view-town.deck-b": "JUMP",
+    "view-town.deck-a": "TALK"
   },
   "buildings": {
     "about": {
@@ -771,6 +779,62 @@
     "highlight": [
       "git.diff",
       "lint.bot"
+    ]
+  },
+  "game": {
+    "crew": [
+      {
+        "name": "Arjun",
+        "lines": [
+          "Welcome to Portfolio Town. We are the town crew: we built this page, piece by piece.",
+          "Walk with WASD or tap the ground. Press E near doors, signs and crew members.",
+          "Every building holds part of {firstName}'s work. The Career Observatory has the full resume."
+        ]
+      },
+      {
+        "name": "Rahul",
+        "lines": [
+          "{firstName} ships things people use: a festival treasure hunt, a blood donation portal, an offline AI agent.",
+          "The Projects Workshop lists every project with its tech stack."
+        ]
+      },
+      {
+        "name": "Meera",
+        "lines": [
+          "Inside the AI Lab: local LLMs on Ollama, tool-calling agents, retrieval, and a machine learning study on gene-expression data.",
+          "All of it runs on local hardware. No cloud APIs."
+        ]
+      },
+      {
+        "name": "Zara",
+        "lines": [
+          "Skill chips are scattered around town. Each one is a tool {firstName} works with.",
+          "Collect them all, then check the Skills Arcade for the full list."
+        ]
+      },
+      {
+        "name": "Leo",
+        "lines": [
+          "Hiring an intern? The Contact Center has {firstName}'s email and profiles.",
+          "{firstName} is open to software and AI internships."
+        ]
+      },
+      {
+        "name": "Kiran",
+        "lines": [
+          "Bugs roam this town. Jump on one to fix it.",
+          "As {firstName} says: every bug is another challenge."
+        ]
+      }
+    ],
+    "spriteSheets": [
+      "player",
+      "npc-1",
+      "npc-2",
+      "npc-3",
+      "npc-4",
+      "npc-5",
+      "npc-6"
     ]
   }
 }

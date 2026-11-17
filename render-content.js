@@ -328,6 +328,160 @@
     });
   }
 
+  // ---------- game pages: About, AI Lab, Skills, Contact from structured data ----------
+  const edu0 = (data.education || [])[0] || {};
+  const setText = (sel, text, root = document) => {
+    const node = root.querySelector(sel);
+    if (node && text) node.textContent = text;
+  };
+  const labelled = (label, value) => {
+    const frag = document.createDocumentFragment();
+    frag.appendChild(el('strong', null, label + ':'));
+    frag.appendChild(document.createTextNode(' ' + value));
+    return frag;
+  };
+  const infoCard = (icon, title, body, meta) => {
+    const card = el('div', 'info-card');
+    card.appendChild(el('div', 'card-icon', icon));
+    card.appendChild(el('h3', null, title));
+    if (meta) card.appendChild(el('p', 'info-card-meta', meta));
+    if (Array.isArray(body)) {
+      const ul = el('ul', 'info-card-list');
+      body.filter(Boolean).forEach(b => ul.appendChild(el('li', null, b)));
+      card.appendChild(ul);
+    } else if (body) {
+      card.appendChild(el('p', null, body));
+    }
+    return card;
+  };
+  const cap = t => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
+  const shortLocation = (profile.location || '').replace(/\s*\([^)]*\)\s*$/, '');
+
+  // About
+  const aboutPage = document.getElementById('page-about');
+  if (aboutPage) {
+    setText('.page-title', profile.name, aboutPage);
+    setText('.page-lead-role', [profile.title, shortLocation].filter(Boolean).join(' · '), aboutPage);
+    setText('.dossier-name', (profile.name || '').toUpperCase(), aboutPage);
+    setText('.dossier-role', profile.title, aboutPage);
+    const meta = aboutPage.querySelectorAll('.dossier-meta-list .meta-item > span:last-child');
+    const metaValues = [
+      edu0.degree && labelled('Education', edu0.degree),
+      edu0.school && document.createTextNode(edu0.school),
+      shortLocation && labelled('Location', shortLocation),
+      profile.availability && labelled('Status', profile.availability)
+    ];
+    meta.forEach((node, i) => { if (metaValues[i]) node.replaceChildren(metaValues[i]); });
+    const firstBio = aboutPage.querySelector('.bio-para');
+    if (firstBio && profile.summary) firstBio.textContent = profile.summary;
+    const img = aboutPage.querySelector('.dossier-avatar-img');
+    if (img && profile.name) img.alt = `${profile.name}, pixel-art character`;
+
+    // Experience, education and achievements as cards (replaces the old fixed cards)
+    const grid = aboutPage.querySelector('.page-grid-2');
+    if (grid) {
+      const cards = [];
+      (data.experience || []).forEach(job => cards.push(infoCard('💼',
+        [job.role, job.org].filter(Boolean).join(' — '), (job.bullets || []).length ? job.bullets : null, job.period)));
+      (data.education || []).forEach(e => cards.push(infoCard('🎓', e.degree, e.details, [e.school, e.period].filter(Boolean).join(' · '))));
+      const ach = (data.achievements || []).filter(Boolean);
+      if (ach.length) cards.push(infoCard('🏆', 'Achievements & certifications', ach));
+      // keep the existing "AI" and "engineering" narrative cards after the data cards
+      const keep = [...grid.children].slice(1, 3);
+      grid.replaceChildren(...cards, ...keep);
+    }
+
+    const facts = aboutPage.querySelector('.page-facts-cluster');
+    if (facts) {
+      facts.textContent = '';
+      [
+        ['Name', profile.name],
+        ['Role', profile.title],
+        ['Education', [edu0.degree, edu0.school].filter(Boolean).join(' — ')],
+        ['Location', profile.location],
+        ['Email', email],
+        ['Looking for', profile.availability]
+      ].forEach(([k, v]) => {
+        if (!v) return;
+        const tag = el('div', 'fact-tag');
+        tag.appendChild(labelled(k, v));
+        facts.appendChild(tag);
+      });
+    }
+  }
+
+  // AI Lab: research cards from "AI & Research", hero from the local LLM project
+  const ailab = document.getElementById('page-ailab');
+  if (ailab) {
+    const heroProject = projects.find(p => /llm|agent/i.test(p.title)) || null;
+    const hero = ailab.querySelector('.ai-hero-box');
+    if (hero && heroProject) {
+      setText('h3', heroProject.title, hero);
+      setText('.ai-sub', (heroProject.tags || []).slice(0, 4).join(' · '), hero);
+      setText('p', heroProject.summary, hero);
+      const pills = hero.querySelector('.ai-tech-pills');
+      if (pills) pills.replaceChildren(...(heroProject.tags || []).map(t => el('span', null, t)));
+    }
+    const grid = ailab.querySelector('.page-grid-2');
+    const icons = ['🧠', '🔬', '🤖', '💻', '🛡️', '📊'];
+    if (grid && (data.ai || []).length) {
+      grid.replaceChildren(...data.ai.map((a, i) => infoCard(icons[i % icons.length], a.title, cap(a.text))));
+    }
+  }
+
+  // Skills: one category per skill group
+  const skillsPage = document.getElementById('page-skills');
+  const skillGrid = skillsPage && skillsPage.querySelector('.skills-categories-grid');
+  if (skillGrid && (data.skills || []).length) {
+    const iconFor = name => {
+      const n = name.toLowerCase();
+      if (/front|web|language/.test(n)) return '🎨';
+      if (/back|api|server/.test(n)) return '⚙️';
+      if (/data|ml|science/.test(n)) return '📊';
+      if (/ai|llm|agent/.test(n)) return '🤖';
+      if (/database|storage|sql/.test(n)) return '🗄️';
+      if (/autom|scrap/.test(n)) return '🕷️';
+      if (/tool|dev/.test(n)) return '🧰';
+      return '✨';
+    };
+    skillGrid.replaceChildren(...data.skills.map(g => {
+      const cat = el('div', 'skill-category');
+      const head = el('div', 'skill-cat-header');
+      head.appendChild(el('span', 'cat-icon', iconFor(g.group)));
+      head.appendChild(el('h4', null, g.group));
+      cat.appendChild(head);
+      const list = el('div', 'skill-pills-list');
+      (g.items || []).forEach(item => list.appendChild(el('span', 'skill-pill high', item)));
+      cat.appendChild(list);
+      return cat;
+    }));
+  }
+
+  // Contact: email, profiles, location, school
+  const contactPage = document.getElementById('page-contact');
+  if (contactPage) {
+    if (email) {
+      setText('#email-text', email, contactPage);
+      contactPage.querySelectorAll('a[href^="mailto:"]').forEach(a => {
+        a.href = 'mailto:' + email + '?subject=' + encodeURIComponent('Hello from your portfolio');
+      });
+    }
+    const cards = contactPage.querySelectorAll('.social-card');
+    const setCard = (card, url) => {
+      if (!card) return;
+      if (url) card.href = url; else card.remove();
+    };
+    setCard([...cards].find(c => /github/i.test(c.getAttribute('href') || '')), github);
+    setCard([...cards].find(c => /linkedin/i.test(c.getAttribute('href') || '')), linkedin);
+    const schoolCard = [...cards].find(c => c.getAttribute('href') === '#about');
+    if (schoolCard && edu0.school) {
+      const strong = schoolCard.querySelector('strong');
+      const small = schoolCard.querySelector('small');
+      if (strong) strong.textContent = edu0.school.split(',')[0];
+      if (small) small.textContent = [edu0.degree, edu0.period].filter(Boolean).join(' · ');
+    }
+  }
+
   // ---------- game: Projects page cards ----------
   const grid = document.querySelector('#page-projects .projects-master-grid');
   if (grid) {

@@ -85,7 +85,7 @@
           <!-- Mode switch: Resume (default) / Game -->
           <div class="sh-mode" role="group" aria-label="View mode">
             <button class="mode-btn sh-mode-btn" id="btn-mode-pro" data-mode="pro" type="button">Resume</button>
-            <button class="mode-btn sh-mode-btn" id="btn-mode-town" data-mode="town" type="button">Play Game</button>
+            <button class="mode-btn sh-mode-btn" id="btn-mode-town" data-mode="town" type="button">Play<span class="sh-mode-extra"> Game</span></button>
           </div>
 
           <button class="btn-mobile-nav" id="btn-mobile-nav" type="button" aria-expanded="false" aria-controls="mobile-nav-drawer" aria-label="Toggle navigation menu">
@@ -106,8 +106,19 @@
             <kbd class="m-search-kbd" data-cms="site-topbar.m-search-kbd">⌘K</kbd>
           </button>
 
-          <!-- Mobile Nav Links Grid -->
-          <div class="mobile-nav-grid" role="navigation" aria-label="Mobile Navigation">
+          <!-- Resume mode: section list (filled from the header links by script.js) -->
+          <div class="m-pro-block pro-only">
+            <span class="m-block-title" data-cms="site-topbar.m-pro-title">Resume sections</span>
+            <nav class="m-pro-nav" id="m-pro-nav" aria-label="Resume sections"></nav>
+            <div class="m-pro-actions">
+              <button class="m-pro-btn m-pro-btn-primary" id="m-pro-pdf" type="button" data-cms="site-topbar.m-pro-pdf">Download PDF</button>
+              <a href="#town" class="m-pro-btn" id="m-pro-play" data-cms="site-topbar.m-pro-play">Play the portfolio game ▶</a>
+            </div>
+          </div>
+
+          <!-- Game mode: town places -->
+          <span class="m-block-title game-only" data-cms="site-topbar.m-game-title">Go to</span>
+          <div class="mobile-nav-grid game-only" role="navigation" aria-label="Mobile Navigation">
             <a href="#town" data-route="town" class="mobile-nav-card active">
               <span class="m-card-icon">🎮</span>
               <div class="m-card-meta">
@@ -160,10 +171,10 @@
           </div>
 
           <!-- Mobile Drawer Footer Info -->
-          <div class="mobile-drawer-footer">
+          <div class="mobile-drawer-footer game-only">
             <div class="m-footer-stats">
               <span class="m-stat-item">🇮🇳 <span id="m-ist-clock">IST</span></span>
-              <span class="m-stat-item">⚡ <span id="m-exp-val" data-cms="site-topbar.span">850 EXP</span></span>
+              <span class="m-stat-item">⚡ <span id="m-exp-val">LVL 1 · 0 XP</span></span>
             </div>
             <div class="m-footer-actions">
               <button class="m-btn-theme" id="m-btn-theme" type="button">☀️ Atmosphere</button>
@@ -250,8 +261,12 @@
                 </div>
                 <ul class="gx-quest-list">
                   <li class="gx-quest" data-quest="explore"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-explore">Visit every building</span><span class="gx-quest-progress" id="gx-quest-explore-progress">0/7</span></li>
-                  <li class="gx-quest" data-quest="bulletin"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-bulletin">Read the notice board</span></li>
-                  <li class="gx-quest" data-quest="coffee"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-coffee">Grab a coffee at Kaapi Cafe</span></li>
+                  <li class="gx-quest" data-quest="chips"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-chips">Collect the skill chips</span><span class="gx-quest-progress" id="gx-quest-chips-progress">0/0</span></li>
+                  <li class="gx-quest" data-quest="crew"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-crew">Talk to the town crew</span><span class="gx-quest-progress" id="gx-quest-crew-progress">0/6</span></li>
+                  <li class="gx-quest" data-quest="bugs"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-bugs">Jump on bugs to fix them</span><span class="gx-quest-progress" id="gx-quest-bugs-progress">0/5</span></li>
+                  <li class="gx-quest" data-quest="friend"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-friend">Make friends with Luka</span></li>
+                  <li class="gx-quest" data-quest="bulletin"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-bulletin">Read the notice board in the south plaza</span></li>
+                  <li class="gx-quest" data-quest="coffee"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-coffee">Drink a coffee (press C)</span></li>
                   <li class="gx-quest" data-quest="resume"><span class="gx-check" aria-hidden="true"></span><span class="gx-quest-label" data-cms="view-town.gx-quest-resume">Open the resume from the Career Observatory</span></li>
                 </ul>
               </div>
@@ -353,6 +368,37 @@
                     </div>
                     <div class="hud-pill hud-speed" id="hud-speed-pill" data-cms="view-town.hud-pill">
                       <span class="speed-hint"><kbd>Shift</kbd> Run</span>
+                    </div>
+                  </div>
+
+                  <!-- Game HUD: collectibles, minimap, map toggle -->
+                  <div class="gx-hud-right">
+                    <div class="gx-counters">
+                      <span class="gx-counter" title="Skill chips collected">◆ <b id="gx-hud-chips">0/0</b></span>
+                      <span class="gx-counter" title="Bugs fixed">🐞 <b id="gx-hud-bugs">0/5</b></span>
+                    </div>
+                    <canvas class="gx-minimap" id="gx-minimap" width="240" height="135" aria-label="Town minimap"></canvas>
+                    <button class="gx-map-btn active" id="gx-map-btn" type="button" title="Whole-town map (M)" data-cms="view-town.gx-map-btn">🗺 Map</button>
+                  </div>
+
+                  <!-- Conversation box (cursor crew, signpost); text typed out -->
+                  <div class="gx-dialogue" id="gx-dialogue" hidden role="status" aria-live="polite">
+                    <span class="gx-dialogue-name" id="gx-dialogue-name">root</span>
+                    <p class="gx-dialogue-text" id="gx-dialogue-text"></p>
+                    <span class="gx-dialogue-next" aria-hidden="true">▼</span>
+                  </div>
+
+                  <!-- Shown once every quest is complete -->
+                  <div class="gx-finale" id="gx-finale" hidden>
+                    <div class="gx-finale-card">
+                      <span class="gx-finale-badge" data-cms="view-town.gx-finale-badge">★ TOWN COMPLETE ★</span>
+                      <h3 class="gx-finale-title" data-cms="view-town.gx-finale-title">You explored all of Portfolio Town</h3>
+                      <p class="gx-finale-text" data-cms="view-town.gx-finale-text">Thanks for playing. The one-page resume has everything in one place, and the Contact Center is open for internship conversations.</p>
+                      <div class="gx-finale-actions">
+                        <button class="gx-cta gx-cta-primary" type="button" data-finale="resume" data-cms="view-town.gx-finale-resume">Open resume</button>
+                        <button class="gx-cta" type="button" data-finale="contact" data-cms="view-town.gx-finale-contact">Contact</button>
+                        <button class="gx-cta" type="button" data-finale="close" data-cms="view-town.gx-finale-close">Keep exploring</button>
+                      </div>
                     </div>
                   </div>
 
@@ -465,26 +511,20 @@
 
                   <!-- Virtual Mobile Touch Controls -->
                   <div class="touch-controls" id="touch-controls" aria-label="On-screen touch controls">
-                    <div class="dpad" id="touch-dpad">
-                      <button class="dpad-btn dpad-up" data-move="up" aria-label="Move Up">▲</button>
-                      <button class="dpad-btn dpad-left" data-move="left" aria-label="Move Left">◀</button>
-                      <div class="dpad-center"></div>
-                      <button class="dpad-btn dpad-right" data-move="right" aria-label="Move Right">▶</button>
-                      <button class="dpad-btn dpad-down" data-move="down" aria-label="Move Down">▼</button>
+                    <div class="dpad" id="touch-dpad" aria-label="Direction pad: slide to walk, push to the edge to run">
+                      <span class="dpad-btn dpad-up" data-move="up" aria-hidden="true">▲</span>
+                      <span class="dpad-btn dpad-left" data-move="left" aria-hidden="true">◀</span>
+                      <span class="dpad-center" aria-hidden="true"></span>
+                      <span class="dpad-btn dpad-right" data-move="right" aria-hidden="true">▶</span>
+                      <span class="dpad-btn dpad-down" data-move="down" aria-hidden="true">▼</span>
+                    </div>
+                    <div class="deck-center">
+                      <button class="deck-pill" id="deck-map-btn" type="button" aria-label="Whole-town map"><span data-cms="view-town.deck-map">MAP</span></button>
+                      <button class="deck-pill" id="deck-tour-btn" type="button" aria-label="Walk to the next building"><span data-cms="view-town.deck-tour">TOUR</span></button>
                     </div>
                     <div class="touch-actions">
-                      <button class="touch-btn action-jump" id="touch-jump-btn" data-action="jump" aria-label="Jump">
-                        <span data-cms="view-town.span-6">JUMP</span>
-                        <small data-cms="view-town.small">Space</small>
-                      </button>
-                      <button class="touch-btn action-b" id="touch-run-btn" data-action="run" aria-label="Sprint">
-                        <span data-cms="view-town.span-7">RUN</span>
-                        <small data-cms="view-town.small-2">Shift</small>
-                      </button>
-                      <button class="touch-btn action-a" id="touch-enter-btn" data-action="enter" aria-label="Enter Building">
-                        <span data-cms="view-town.span-8">ENTER</span>
-                        <small data-cms="view-town.small-3">E</small>
-                      </button>
+                      <button class="touch-btn action-b" id="touch-jump-btn" type="button" aria-label="Jump">B<small data-cms="view-town.deck-b">JUMP</small></button>
+                      <button class="touch-btn action-a" id="touch-enter-btn" type="button" aria-label="Talk or enter">A<small data-cms="view-town.deck-a">TALK</small></button>
                     </div>
                   </div>
                 </div>

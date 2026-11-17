@@ -108,7 +108,7 @@
         last = '✓';
         show('✓', false);
         clearTimeout(timer);
-        timer = setTimeout(() => { last = null; g.setAttribute('opacity', 0); }, 380);
+        timer = setTimeout(() => { last = null; g.setAttribute('opacity', 0); }, 260);
       }
     };
   }
@@ -132,6 +132,8 @@
   const HAND_MIN_AREA = 1200;
   const HAND_JOBS_PER_CURSOR = 2;
   const HAND_TEXT_PER_CURSOR = 1;
+  const INTRO_DEADLINE_MS = 3600;
+  const BIG_LABEL_AREA = 30000; // only large panels/media show a <tag> bubble
   // Total typing time per text block (ms), shared across its lines by width
   const TYPE_BUDGET_HAND = 850;
   const TYPE_BUDGET_AUTO = 480;
@@ -185,6 +187,23 @@
       return `rgb(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)})`;
     }
     return null;
+  }
+
+  // Colour stops of a CSS gradient background (faint pattern layers ignored)
+  function gradientStops(img) {
+    if (!img || img === 'none' || !/gradient/.test(img)) return null;
+    const colors = (img.match(/rgba?\([^)]*\)/g) || []).filter(c => colorAlpha(c) > 0.3);
+    if (!colors.length) return null;
+    return colors.length === 1 ? [colors[0], colors[0]] : colors.slice(0, 4);
+  }
+
+  // A hard offset shadow (e.g. "4px 4px 0 …" retro shadow); soft shadows are skipped
+  function hardShadow(shadow) {
+    if (!shadow || shadow === 'none' || /inset/.test(shadow)) return null;
+    const m = shadow.match(/(rgba?\([^)]*\))\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+([\d.]+)px/);
+    if (!m || parseFloat(m[4]) > 2) return null;
+    const x = parseFloat(m[2]), y = parseFloat(m[3]);
+    return x || y ? { color: m[1], x, y } : null;
   }
 
   function isShown(el) {
@@ -284,14 +303,17 @@
       const bgAlpha = colorAlpha(cs.backgroundColor);
       const borderW = parseFloat(cs.borderTopWidth) || 0;
       const hasBorder = borderW > 0 && cs.borderTopStyle !== 'none' && colorAlpha(cs.borderTopColor) > 0.1;
-      if (!isMedia && area >= MIN_PANEL_AREA && (bgAlpha > 0.05 || hasBorder) && area < vw * vh * 0.95) {
+      const grad = gradientStops(cs.backgroundImage);
+      if (!isMedia && area >= MIN_PANEL_AREA && (bgAlpha > 0.05 || hasBorder || grad) && area < vw * vh * 0.95) {
         const panel = {
           kind: 'panel', el, order: order++, area, ...box,
-          fill: bgAlpha > 0.05 ? cs.backgroundColor : 'none',
+          fill: bgAlpha > 0.05 ? cs.backgroundColor : (grad ? grad[grad.length - 1] : 'none'),
+          grad,
+          shadow: hardShadow(cs.boxShadow),
           stroke: hasBorder ? cs.borderTopColor : 'none',
           strokeW: hasBorder ? Math.min(borderW, 4) : 0,
           radius: Math.min(parseFloat(cs.borderTopLeftRadius) || 0, box.w / 2, box.h / 2),
-          tint: tintFor([hasBorder ? cs.borderTopColor : null, cs.backgroundColor])
+          tint: tintFor([hasBorder ? cs.borderTopColor : null, cs.backgroundColor, grad && grad[0]])
         };
         panels.push(panel);
         panelByEl.set(el, panel);
@@ -352,7 +374,10 @@
 
     const mask = svgEl('mask', { id: 'si-mask', maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: vw, height: vh }, defs);
     svgEl('rect', { x: 0, y: 0, width: vw, height: vh, fill: '#fff' }, mask);
-    const holes = svgEl('g', {}, mask);
+    // Hairline softening so revealed text blends instead of showing hard boxes
+    const soften = svgEl('filter', { id: 'si-soft', x: '-5%', y: '-20%', width: '110%', height: '140%' }, defs);
+    svgEl('feGaussianBlur', { stdDeviation: 0.7 }, soften);
+    const holes = svgEl('g', { filter: 'url(#si-soft)' }, mask);
 
     const canvasLayer = svgEl('g', { mask: 'url(#si-mask)' }, svg);
     svgEl('rect', { x: 0, y: 0, width: vw, height: vh, fill: page }, canvasLayer);
@@ -378,7 +403,7 @@
     host.appendChild(skip);
 
     document.body.appendChild(host);
-    return { host, holes, panelLayer, guideLayer, cursorLayer, skip };
+    return { host, defs, holes, panelLayer, guideLayer, cursorLayer, skip };
   }
 
   // 16-bit arrow cursor (1px grid, matches the town's pixel art) with a pixel name tag.
@@ -469,6 +494,9 @@
     // Resume mode uses the clean cursor style; the game uses pixel cursors
     const smoothStyle = root.getAttribute('data-mode') === 'pro';
     timeScale = smoothStyle ? 1.6 : 1;
+    // Deadline: whatever is still being built after this speeds up to finish quickly,
+    // so the intro never drags on dense screens
+    const deadline = setTimeout(() => { if (!finished) timeScale = 3.5; }, smoothStyle ? 2400 : INTRO_DEADLINE_MS);
 
     let skipped = false;
     let finished = false;
@@ -479,6 +507,7 @@
       window.removeEventListener('keydown', onKey, true);
       ui.host.removeEventListener('pointerdown', onSkip);
       ui.host.classList.add('swarm-intro-leaving');
+      clearTimeout(deadline);
       timeScale = 1;
       setTimeout(() => {
         ui.host.remove();
@@ -572,11 +601,32 @@
       };
     }
 
+    let gradSeq = 0;
     function addPanelShape(job) {
-      return svgEl('rect', {
+      const g = svgEl('g', {}, ui.panelLayer);
+      let fill = job.fill;
+      if (job.grad) {
+        const id = `si-grad-${++gradSeq}`;
+        const lg = svgEl('linearGradient', { id, x1: 0, y1: 0, x2: 1, y2: 1 }, ui.defs);
+        job.grad.forEach((c, i) => svgEl('stop', { offset: `${(i / (job.grad.length - 1)) * 100}%`, 'stop-color': c }, lg));
+        fill = `url(#${id})`;
+      }
+      const shadow = job.shadow
+        ? svgEl('rect', { x: job.x + job.shadow.x, y: job.y + job.shadow.y, width: 0, height: 0, rx: job.radius, fill: job.shadow.color }, g)
+        : null;
+      const body = svgEl('rect', {
         x: job.x, y: job.y, width: 0, height: 0, rx: job.radius,
-        fill: job.fill, stroke: job.stroke, 'stroke-width': job.strokeW
-      }, ui.panelLayer);
+        fill, stroke: job.stroke, 'stroke-width': job.strokeW
+      }, g);
+      return {
+        size(w, h) {
+          for (const r of shadow ? [shadow, body] : [body]) {
+            r.setAttribute('width', Math.max(0, w).toFixed(1));
+            r.setAttribute('height', Math.max(0, h).toFixed(1));
+          }
+        },
+        opacity(v) { g.setAttribute('opacity', v); }
+      };
     }
 
     // --- Hand-built actions ---
@@ -586,17 +636,17 @@
       job.startedAt = performance.now();
       const sel = selection(agent.color, job.x, job.y);
       const shape = addPanelShape(job);
-      shape.setAttribute('opacity', 0.55);
-      agent.bubble.set(tagLabel(job.el));
+      shape.opacity(0.85);
+      // Code-style labels only for the big structural pieces (keeps bubbles readable)
+      if (job.area > BIG_LABEL_AREA) agent.bubble.set(tagLabel(job.el));
       await tween(clamp(Math.hypot(job.w, job.h) * 0.8, 300, 540), t => {
         const w = job.w * t, h = job.h * t;
         moveCursor(agent, job.x + w, job.y + h);
         sel.size(w, h);
-        shape.setAttribute('width', w.toFixed(1));
-        shape.setAttribute('height', h.toFixed(1));
+        shape.size(w, h);
       });
       sel.showHandles();
-      await tween(180, t => shape.setAttribute('opacity', (0.55 + 0.45 * t).toFixed(3)));
+      await tween(160, t => shape.opacity((0.85 + 0.15 * t).toFixed(3)));
       sel.fadeOut();
       agent.bubble.set('');
     }
@@ -636,7 +686,7 @@
       job.startedAt = performance.now();
       const sel = selection(agent.color, job.x, job.y);
       const hole = svgEl('rect', { x: job.x, y: job.y, width: job.w, height: job.h, fill: '#000', 'fill-opacity': 0 }, ui.holes);
-      agent.bubble.set(tagLabel(job.el));
+      if (job.area > BIG_LABEL_AREA) agent.bubble.set(tagLabel(job.el));
       await tween(clamp(Math.hypot(job.w, job.h) * 0.8, 300, 560), t => {
         moveCursor(agent, job.x + job.w * t, job.y + job.h * t);
         sel.size(job.w * t, job.h * t);
@@ -656,9 +706,9 @@
       job.startedAt = performance.now();
       if (job.kind === 'panel') {
         const shape = addPanelShape(job);
-        shape.setAttribute('width', job.w);
-        shape.setAttribute('height', job.h);
-        await tween(260, t => shape.setAttribute('opacity', t.toFixed(3)));
+        shape.size(job.w, job.h);
+        shape.opacity(0);
+        await tween(260, t => shape.opacity(t.toFixed(3)));
       } else if (job.kind === 'text') {
         const msPerPx = typingRate(job.lines, TYPE_BUDGET_AUTO, 0.8);
         for (const line of job.lines) {
@@ -678,6 +728,10 @@
     }
 
     function nextReady() {
+      // Images and the game canvas jump the queue as soon as their panel exists
+      for (let i = 0; i < queue.length; i++) {
+        if (queue[i].kind === 'media' && depsReady(queue[i])) return queue.splice(i, 1)[0];
+      }
       for (let i = 0; i < queue.length; i++) {
         if (depsReady(queue[i])) return queue.splice(i, 1)[0];
       }
@@ -685,7 +739,7 @@
     }
 
     async function work(agent, index) {
-      await wait(index * 90);
+      await wait(index * 45);
       tween(300, t => agent.g.setAttribute('opacity', t.toFixed(3)));
       while (!skipped && queue.length) {
         const job = nextReady();
@@ -696,18 +750,19 @@
         else await placeMedia(agent, job);
       }
       if (skipped) return;
-      // Drift away and fade once the crew's work is done
+      // Drift away and fade once the crew's work is done (not awaited: the reveal
+      // should end as soon as the page is complete, not when cursors leave)
       const exitX = agent.x < vw / 2 ? -40 : vw + 40;
-      tween(500, t => agent.g.setAttribute('opacity', (1 - t).toFixed(3)));
-      await glide(agent, exitX, agent.y + rand(-60, 60));
+      tween(400, t => agent.g.setAttribute('opacity', (1 - t).toFixed(3)));
+      glide(agent, exitX, agent.y + rand(-60, 60));
     }
 
     const autos = jobs.filter(j => !handBuilt.has(j)).map(autoReveal);
 
-    await wait(150);
+    await wait(60);
     await Promise.all([...crew.map(work), ...autos]);
     if (!skipped) {
-      await wait(150);
+      await wait(250); // let the last cursors start fading before the crossfade
       finish();
     }
   }
