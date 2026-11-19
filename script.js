@@ -3943,23 +3943,6 @@
       drawShadow(428, 238, 10, 4);
       ctx.drawImage(sp, 195, 165, 115, 170, 417, 204, 22, 34);
     } },
-    { y: 196, draw: () => {
-      const sp = getTransparentSprite(townAssetsImg);
-      if (!sp) return;
-      drawShadow(936, 196, 11, 4);
-      ctx.drawImage(sp, 325, 27, 130, 200, 925, 164, 22, 34);
-      const now = Date.now();
-      ctx.fillStyle = Math.sin(now * 0.01) > 0 ? '#22c55e' : '#15803d';
-      ctx.fillRect(929, 172, 3, 2);
-      ctx.fillStyle = Math.cos(now * 0.012) > 0 ? '#38bdf8' : '#0369a1';
-      ctx.fillRect(929, 177, 3, 2);
-    } },
-    { y: 86, draw: () => {
-      const sp = getTransparentSprite(townAssetsImg);
-      if (!sp) return;
-      drawShadow(88, 86, 14, 5);
-      ctx.drawImage(sp, 290, 295, 195, 180, 72, 60, 32, 28);
-    } },
     { y: 445, draw: () => drawCampusBulletinStand() }
   ];
 
@@ -4276,7 +4259,7 @@
     // 4. Props from Town Assets Sprite Sheet (512x512; source rects are in that space)
     const assetsSprite = getTransparentSprite(townAssetsImg);
     if (assetsSprite) {
-      // Signpost, server rack and desk are depth-sorted props (see PROPS)
+      // The signpost is a depth-sorted prop (see PROPS)
     }
 
     // 5. Central Plaza Compass Badge when player approaches

@@ -231,25 +231,40 @@
     }
   }
 
-  // ---------- resume: projects ----------
+  // ---------- resume: projects (showcase cards: status, demo video, case study) ----------
+  const SC = window.Showcase || null;
   const proProjects = document.getElementById('pro-projects');
   if (proProjects) {
     clearAfterHeading(proProjects);
     projects.forEach(p => {
       const item = el('article', 'rs-project');
+      item.dataset.project = p.id || '';
+      const thumb = SC && SC.thumb(p);
+      if (thumb) {
+        item.classList.add('rs-project-media');
+        item.appendChild(thumb);
+      }
+      const body = el('div', 'rs-project-body');
       const head = el('div', 'rs-project-head');
       head.appendChild(el('h3', null, p.title));
-      if (p.tags && p.tags.length) head.appendChild(el('span', 'rs-stack', p.tags.join(' · ')));
-      item.appendChild(head);
-      if (p.summary) item.appendChild(el('p', null, p.summary));
+      const status = SC && SC.badge(p, 'rs');
+      if (status) head.appendChild(status);
+      body.appendChild(head);
+      const meta = [p.period, p.role].filter(Boolean).join(' · ');
+      if (meta) body.appendChild(el('p', 'rs-project-meta', meta));
+      if (p.summary) body.appendChild(el('p', null, p.summary));
+      if (p.tags && p.tags.length) body.appendChild(el('p', 'rs-stack', p.tags.join(' · ')));
       const repo = safeUrl(p.repo);
       const demo = safeUrl(p.demo);
-      if (repo || demo) {
+      const openBtn = SC && SC.openButton(p, 'rs-case-btn');
+      if (repo || demo || openBtn) {
         const links = el('p', 'rs-project-links');
+        if (openBtn) links.appendChild(openBtn);
         if (demo) links.appendChild(link(demo, 'Live demo ↗', true));
         if (repo) links.appendChild(link(repo, 'Source ↗', true));
-        item.appendChild(links);
+        body.appendChild(links);
       }
+      item.appendChild(body);
       proProjects.appendChild(item);
     });
   }
@@ -488,7 +503,14 @@
     grid.textContent = '';
     projects.forEach(p => {
       const card = el('div', p.featured ? 'proj-card featured' : 'proj-card');
+      const thumb = SC && SC.thumb(p);
+      if (thumb) {
+        card.classList.add('has-thumb');
+        card.appendChild(thumb);
+      }
       if (p.badge) card.appendChild(el('div', 'proj-badge', p.badge));
+      const status = SC && SC.badge(p, 'proj');
+      if (status) card.appendChild(status);
       card.appendChild(el('h3', 'proj-title', p.title));
       if (p.summary) card.appendChild(el('p', 'proj-summary', p.summary));
       if (p.tags && p.tags.length) {
@@ -499,11 +521,64 @@
       const actions = el('div', 'proj-actions');
       const demo = safeUrl(p.demo);
       const repo = safeUrl(p.repo);
+      const openBtn = SC && SC.openButton(p, 'proj-btn proj-btn-open');
+      if (openBtn) actions.appendChild(openBtn);
       if (demo) actions.appendChild(Object.assign(link(demo, 'Live Demo ↗', true), { className: 'proj-btn' }));
       if (repo) actions.appendChild(Object.assign(link(repo, 'Source ↗', true), { className: 'proj-btn' }));
-      if (!demo && !repo) actions.appendChild(Object.assign(link('#contact', 'Ask About It ↗'), { className: 'proj-btn' }));
+      if (!demo && !repo && !openBtn) actions.appendChild(Object.assign(link('#contact', 'Ask About It ↗'), { className: 'proj-btn' }));
       card.appendChild(actions);
       grid.appendChild(card);
     });
   }
+
+  // ---------- game: noticeboard (LinkedIn posts and notes from the panel) ----------
+  const board = document.querySelector('#bulletin-dialog .bulletin-grid');
+  if (board) {
+    board.textContent = '';
+    const MEDIA_RE = /^\/media\/[a-z0-9][a-z0-9-]{0,90}\.(mp4|webm|jpg|webp|png)$/;
+    const posts = (data.bulletin || []).filter(b => b && b.visible !== false);
+    posts.forEach(b => {
+      const card = el('article', 'bulletin-pin-card bulletin-post');
+      const cover = [b.poster, b.image].find(v => MEDIA_RE.test(v || ''));
+      if (cover || MEDIA_RE.test(b.video || '')) {
+        const btn = el('button', 'bp-media');
+        btn.type = 'button';
+        btn.dataset.post = b.id;
+        btn.setAttribute('aria-label', 'Open post' + (b.title ? ': ' + b.title : ''));
+        if (cover) {
+          const img = el('img');
+          img.src = cover;
+          img.alt = '';
+          img.loading = 'lazy';
+          btn.appendChild(img);
+        }
+        if (MEDIA_RE.test(b.video || '')) btn.appendChild(el('span', 'bp-play', '▶'));
+        card.appendChild(btn);
+      }
+      const li = b.source === 'linkedin';
+      card.appendChild(el('span', 'pin-badge ' + (li ? 'teal' : 'gold'), (li ? 'in  LINKEDIN' : '📌 NOTE') + (b.date ? ' · ' + b.date : '')));
+      if (b.title) card.appendChild(el('h3', null, b.title));
+      card.appendChild(el('p', 'bp-text', b.text || (li ? 'A post from LinkedIn. Open it to read.' : '')));
+      const actions = el('div', 'bp-actions');
+      const more = el('button', 'bp-more', b.text && b.text.length > 220 ? 'Read more' : 'Open');
+      more.type = 'button';
+      more.dataset.post = b.id;
+      actions.appendChild(more);
+      const url = SC ? SC.postLink(b) : '';
+      if (url) actions.appendChild(Object.assign(link(url, 'LinkedIn ↗', true), { className: 'bp-link' }));
+      card.appendChild(actions);
+      board.appendChild(card);
+    });
+    if (!posts.length) {
+      const empty = el('div', 'bulletin-pin-card bulletin-empty');
+      empty.appendChild(el('span', 'pin-badge wood', '📌 NOTICEBOARD'));
+      empty.appendChild(el('h3', null, 'Fresh posts coming soon'));
+      empty.appendChild(el('p', null, 'Updates, write-ups and project news are pinned here.'));
+      if (linkedin) empty.appendChild(Object.assign(link(linkedin, 'Follow on LinkedIn ↗', true), { className: 'bp-link' }));
+      board.appendChild(empty);
+    }
+  }
+
+  // Preview loops, viewer clicks and #project=<id> deep links
+  if (SC) SC.mount();
 })();

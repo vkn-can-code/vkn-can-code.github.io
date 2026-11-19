@@ -473,37 +473,13 @@
                         </div>
                       </div>
                       <div class="dialog-body bulletin-body">
-                        <div class="bulletin-grid">
-                          <div class="bulletin-pin-card">
-                            <span class="pin-badge gold" data-cms="view-town.pin-badge">🏆 CAMPUS HIGHLIGHT</span>
-                            <h3 data-cms="view-town.h3">SPLENDORE Treasure Hunt App</h3>
-                            <p data-cms="view-town.p">Real-time interactive mobile campus competition game engineered for Rajagiri's annual festival. GPS checkpoint verification &amp; live leaderboard for 400+ students!</p>
-                            <span class="bulletin-tag" data-cms="view-town.bulletin-tag">Rajagiri College of Social Sciences</span>
-                          </div>
-                          <div class="bulletin-pin-card">
-                            <span class="pin-badge teal" data-cms="view-town.pin-badge-2">🤖 AI LAB DISPATCH</span>
-                            <h3 data-cms="view-town.h3-2">Autonomous Local LLM Agent</h3>
-                            <p data-cms="view-town.p-2">100% offline desktop AI system powered by Ollama, Llama 3 &amp; DeepSeek-R1. Built with semantic RAG vector retrieval and automated developer tool execution.</p>
-                            <span class="bulletin-tag" data-cms="view-town.bulletin-tag-2">Local LLMs · Python · Ollama</span>
-                          </div>
-                          <div class="bulletin-pin-card">
-                            <span class="pin-badge brick" data-cms="view-town.pin-badge-3">🩸 SOCIAL IMPACT</span>
-                            <h3 data-cms="view-town.h3-3">Rajagiri Blood Donation Portal</h3>
-                            <p data-cms="view-town.p-3">Connecting voluntary student &amp; faculty donors with urgent hospital requests across Kalamassery and Kochi. Role-based dashboards for rapid matching.</p>
-                            <span class="bulletin-tag" data-cms="view-town.bulletin-tag-3">Community Health Platform</span>
-                          </div>
-                          <div class="bulletin-pin-card">
-                            <span class="pin-badge wood" data-cms="view-town.pin-badge-4">💼 OPPORTUNITIES</span>
-                            <h3 data-cms="view-town.h3-4">Software &amp; AI Engineering</h3>
-                            <p data-cms="view-town.p-4">Vivek is actively seeking software development &amp; AI engineering roles. Passionate about shipping fast, beautiful, reliable web &amp; intelligent systems!</p>
-                            <button class="modal-btn modal-btn-gold" type="button" id="bulletin-contact-btn" style="margin-top: 8px;">
-                              <span data-cms="view-town.span-5">Contact Vivek Directly</span> <span>➔</span>
-                            </button>
-                          </div>
-                        </div>
+                        <!-- Posts come from the control panel (Noticeboard tab), built by render-content.js -->
+                        <div class="bulletin-grid"></div>
                       </div>
                       <div class="dialog-footer">
-                        <span class="dialog-hint" data-cms="view-town.dialog-hint-2"><kbd>Esc</kbd> or click ✕ to close billboard</span>
+                        <button class="modal-btn modal-btn-gold" type="button" id="bulletin-contact-btn">
+                          <span data-cms="view-town.span-5">Contact Vivek Directly</span> <span>➔</span>
+                        </button>
                         <button class="btn-dialog-exit" id="btn-bulletin-exit" type="button">Back to Town ↵</button>
                       </div>
                     </div>
@@ -1861,6 +1837,7 @@
 
     <!-- Site content: server.py inlines content.json here; render-content.js falls back to fetching it -->
     <script id="site-content" type="application/json"><!--SITE_CONTENT--></script>
+    <script src="showcase.js"></script>
     <script src="render-content.js"></script>
     <script src="script.js"></script>
     <script src="swarm-intro.js"></script>

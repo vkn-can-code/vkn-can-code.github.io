@@ -41,7 +41,27 @@
       "featured": true,
       "repo": "",
       "demo": "",
-      "visible": true
+      "visible": true,
+      "status": "",
+      "period": "",
+      "role": "",
+      "problem": "Cloud AI assistants send code and files to third-party servers, which rules them out for private projects and offline work.",
+      "solution": "A desktop assistant that runs entirely on local models through Ollama (Llama 3, DeepSeek R1). It plans multi-step tasks, calls tools in a loop and retrieves context from local files, with no cloud APIs.",
+      "features": [
+        "Runs fully offline on quantized 4-bit / 8-bit GGUF models",
+        "Multi-step tool-calling loop for file search and developer tasks",
+        "Retrieval (RAG) over local files for grounded answers",
+        "System-prompt orchestration and context caching"
+      ],
+      "outcome": "",
+      "video": "",
+      "preview": "",
+      "poster": "",
+      "duration": 0,
+      "embed": "",
+      "github": "",
+      "autoSync": false,
+      "gallery": []
     },
     {
       "id": "blood-donation-app",
@@ -55,9 +75,29 @@
       ],
       "summary": "Campus donor management platform with Faculty, Administrator and Student dashboards, emergency request broadcasting, and donor compatibility matching.",
       "featured": true,
-      "repo": "https://github.com/vkn-can-code/rajagiri-blood-donation.git",
+      "repo": "https://github.com/vkn-can-code/rajagiri-blood-donation",
       "demo": "",
-      "visible": true
+      "visible": true,
+      "status": "",
+      "period": "",
+      "role": "",
+      "problem": "Finding a compatible donor quickly in an emergency is hard without a shared, up-to-date donor list.",
+      "solution": "A campus web platform with separate dashboards for students, faculty and administrators, built with React, Tailwind CSS, Node.js and PostgreSQL.",
+      "features": [
+        "Role-based dashboards for students, faculty and administrators",
+        "Emergency requests broadcast to registered donors",
+        "Donor compatibility matching by blood group",
+        "Central donor records in PostgreSQL"
+      ],
+      "outcome": "",
+      "video": "",
+      "preview": "",
+      "poster": "",
+      "duration": 0,
+      "embed": "",
+      "github": "vkn-can-code/rajagiri-blood-donation",
+      "autoSync": true,
+      "gallery": []
     },
     {
       "id": "leukemia-ml",
@@ -74,7 +114,27 @@
       "featured": false,
       "repo": "https://github.com/vkn-can-code/leukemia-classifier",
       "demo": "",
-      "visible": true
+      "visible": true,
+      "status": "",
+      "period": "",
+      "role": "",
+      "problem": "Microarray gene-expression data has thousands of features but few samples, which makes reliable leukemia classification hard.",
+      "solution": "A Python pipeline that extracts features, reduces dimensions with PCA and benchmarks SVM, Random Forest and KNN classifiers against each other.",
+      "features": [
+        "PCA dimensionality reduction on high-dimensional data",
+        "Side-by-side benchmark of SVM, Random Forest and KNN",
+        "Result comparison charts with Matplotlib",
+        "Reproducible pipeline with Pandas and scikit-learn"
+      ],
+      "outcome": "",
+      "video": "",
+      "preview": "",
+      "poster": "",
+      "duration": 0,
+      "embed": "",
+      "github": "vkn-can-code/leukemia-classifier",
+      "autoSync": true,
+      "gallery": []
     },
     {
       "id": "pdf-generator",
@@ -91,7 +151,26 @@
       "featured": false,
       "repo": "",
       "demo": "",
-      "visible": true
+      "visible": true,
+      "status": "",
+      "period": "",
+      "role": "",
+      "problem": "Turning database profiles into well-formatted PDF resumes by hand is slow and inconsistent.",
+      "solution": "A Flask service that renders each profile into a Jinja2 HTML template and prints it to PDF with headless Playwright.",
+      "features": [
+        "Jinja2 templates for consistent layouts",
+        "Headless Playwright rendering to print-ready PDFs",
+        "Profiles compiled straight from the database"
+      ],
+      "outcome": "",
+      "video": "",
+      "preview": "",
+      "poster": "",
+      "duration": 0,
+      "embed": "",
+      "github": "",
+      "autoSync": false,
+      "gallery": []
     },
     {
       "id": "lead-scraper",
@@ -106,9 +185,28 @@
       ],
       "summary": "Data pipeline for multi-source business entity resolution: automated scraping, deduplication, and structured export for lead generation.",
       "featured": false,
-      "repo": "https://github.com/vkn-can-code/emailer-and-scraper.git",
-      "demo": "",
-      "visible": true
+      "repo": "https://github.com/vkn-can-code/emailer-and-scraper",
+      "demo": "https://emailer-and-scraper.vercel.app",
+      "visible": true,
+      "status": "",
+      "period": "",
+      "role": "",
+      "problem": "Business contact data is scattered across many sites, with duplicates and inconsistent formats.",
+      "solution": "A Python data pipeline that scrapes several sources with Playwright and BeautifulSoup, resolves duplicate entities and exports clean, structured data.",
+      "features": [
+        "Automated multi-source scraping",
+        "Entity resolution and deduplication with Pandas",
+        "Structured export ready for lead generation"
+      ],
+      "outcome": "",
+      "video": "",
+      "preview": "",
+      "poster": "",
+      "duration": 0,
+      "embed": "",
+      "github": "vkn-can-code/emailer-and-scraper",
+      "autoSync": true,
+      "gallery": []
     },
     {
       "id": "kerala-literature-portal",
@@ -125,7 +223,26 @@
       "featured": false,
       "repo": "",
       "demo": "",
-      "visible": true
+      "visible": true,
+      "status": "",
+      "period": "",
+      "role": "",
+      "problem": "Material on Kerala renaissance authors is spread across many sources and hard for students to explore.",
+      "solution": "An e-learning portal built with Flask and JavaScript that brings author archives, literary analysis and multilingual content into one place.",
+      "features": [
+        "Author archive with literary analysis",
+        "Interactive timelines",
+        "Multilingual reader assessments (Unicode)"
+      ],
+      "outcome": "",
+      "video": "",
+      "preview": "",
+      "poster": "",
+      "duration": 0,
+      "embed": "",
+      "github": "",
+      "autoSync": false,
+      "gallery": []
     },
     {
       "id": "html-games-hub",
@@ -142,7 +259,55 @@
       "featured": false,
       "repo": "",
       "demo": "",
-      "visible": true
+      "visible": true,
+      "status": "",
+      "period": "",
+      "role": "",
+      "problem": "",
+      "solution": "A set of responsive 2D browser games in vanilla JavaScript on HTML5 Canvas, with sound generated live through the Web Audio API.",
+      "features": [
+        "Responsive canvas games for desktop and mobile",
+        "Sound effects synthesised with Web Audio, no audio files",
+        "High scores saved in Local Storage",
+        "Admin panel to tune difficulty"
+      ],
+      "outcome": "",
+      "video": "",
+      "preview": "",
+      "poster": "",
+      "duration": 0,
+      "embed": "",
+      "github": "",
+      "autoSync": false,
+      "gallery": []
+    },
+    {
+      "id": "shopify",
+      "title": "Shopify",
+      "badge": "JAVASCRIPT",
+      "tags": [
+        "JavaScript"
+      ],
+      "summary": "react, php laravel stack based E-commerce app",
+      "featured": false,
+      "repo": "https://github.com/vkn-can-code/shopify",
+      "demo": "",
+      "visible": true,
+      "status": "",
+      "period": "2026",
+      "role": "",
+      "problem": "",
+      "solution": "",
+      "features": [],
+      "outcome": "",
+      "video": "",
+      "preview": "",
+      "poster": "",
+      "duration": 0,
+      "embed": "",
+      "github": "vkn-can-code/shopify",
+      "autoSync": true,
+      "gallery": []
     }
   ],
   "ai": [
@@ -310,23 +475,7 @@
     "view-town.dialog-hint": "<kbd>E</kbd> or <kbd>Esc</kbd> to close · <kbd>←</kbd> <kbd>→</kbd> next building",
     "view-town.dialog-badge": "📌 NOTICE BOARD",
     "view-town.dialog-heading": "Highlights",
-    "view-town.pin-badge": "🏆 CAMPUS PROJECT",
-    "view-town.h3": "SPLENDORE Treasure Hunt",
-    "view-town.p": "Real-time treasure hunt platform built for Rajagiri's annual SPLENDORE festival, with GPS checkpoint validation and a live leaderboard.",
-    "view-town.bulletin-tag": "JavaScript · Python · Real-time",
-    "view-town.pin-badge-2": "🤖 AI PROJECT",
-    "view-town.h3-2": "Autonomous Local LLM Agent",
-    "view-town.p-2": "Desktop assistant that runs fully offline on local models (Ollama, Llama 3, DeepSeek R1), with tool calling and retrieval over local files.",
-    "view-town.bulletin-tag-2": "Python · Ollama · RAG",
-    "view-town.pin-badge-3": "🩸 COMMUNITY",
-    "view-town.h3-3": "Blood Donation Web Application",
-    "view-town.p-3": "Campus donor management platform with Faculty, Administrator and Student dashboards, emergency request broadcasting and donor matching.",
-    "view-town.bulletin-tag-3": "Python · Flask · SQL",
-    "view-town.pin-badge-4": "💼 OPEN TO WORK",
-    "view-town.h3-4": "Software & AI internships",
-    "view-town.p-4": "{name} is looking for software development and AI engineering internships and entry-level roles. Reach out by email.",
     "view-town.span-5": "Contact {name}",
-    "view-town.dialog-hint-2": "<kbd>Esc</kbd> or ✕ to close",
     "view-town.actions-dock-label": "ACTIONS:",
     "view-town.btn-name": "Jump",
     "view-town.kbd": "Space",
@@ -836,5 +985,13 @@
       "npc-5",
       "npc-6"
     ]
+  },
+  "bulletin": [],
+  "integrations": {
+    "github": {
+      "user": "vkn-can-code",
+      "autoSync": true,
+      "autoAdd": true
+    }
   }
 }
